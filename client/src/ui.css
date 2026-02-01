@@ -1,137 +1,229 @@
 /* client/src/ui.css */
-:root { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; }
-body { margin: 0; background: #f6f7fb; }
-a { text-decoration: none; color: inherit; }
+:root {
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+}
+body {
+  margin: 0;
+  background: #f6f7fb;
+}
+a {
+  text-decoration: none;
+  color: inherit;
+}
 
-.shell { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
-.sidebar { background: #111827; color: white; padding: 16px; }
-.brand { font-weight: 800; margin-bottom: 12px; }
-.nav a { display: block; padding: 10px 12px; border-radius: 10px; color: #e5e7eb; }
-.nav a.active { background: #1f2937; color: #fff; }
-.badge { display:inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; background:#1f2937; margin-left: 8px; }
+.shell {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  min-height: 100vh;
+}
+.sidebar {
+  background: #111827;
+  color: white;
+  padding: 16px;
+}
+.brand {
+  font-weight: 800;
+  margin-bottom: 12px;
+}
+.nav a {
+  display: block;
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: #e5e7eb;
+}
+.nav a.active {
+  background: #1f2937;
+  color: #fff;
+}
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  background: #1f2937;
+  margin-left: 8px;
+}
 
-.main { padding: 18px; }
-.card { background: white; border-radius: 16px; padding: 14px; box-shadow: 0 6px 20px rgba(0,0,0,.06); }
-.grid { display: grid; gap: 12px; }
-.row { display:flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.main {
+  background: #0d1117;
+}
+.card {
+  background: white;
+  border-radius: 16px;
+  padding: 14px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+}
+.grid {
+  display: grid;
+  gap: 12px;
+}
+.row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
 
-.h1 { font-size: 20px; font-weight: 800; }
-.muted { color: #6b7280; font-size: 13px; }
-.input, select, textarea { padding: 10px; border: 1px solid #e5e7eb; border-radius: 10px; width: 100%; }
-.btn { padding: 10px 12px; border: 0; border-radius: 10px; cursor: pointer; background: #111827; color: white; }
-.btn.secondary { background: #e5e7eb; color: #111827; }
-.btn.danger { background: #dc2626; }
-.btn:disabled { opacity: .5; cursor: not-allowed; }
+.h1 {
+  font-size: 20px;
+  font-weight: 800;
+}
+.muted {
+  color: #6b7280;
+  font-size: 13px;
+}
+.input,
+select,
+textarea {
+  padding: 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  width: 100%;
+}
+.btn {
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 10px;
+  cursor: pointer;
+  background: #111827;
+  color: white;
+}
+.btn.secondary {
+  background: #e5e7eb;
+  color: #111827;
+}
+.btn.danger {
+  background: #dc2626;
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 
-.table { width: 100%; border-collapse: collapse; }
-.table th, .table td { text-align: left; padding: 8px 6px; border-bottom: 1px solid #eee; }
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.table th,
+.table td {
+  text-align: left;
+  padding: 8px 6px;
+  border-bottom: 1px solid #eee;
+}
 
 /* ---------------- App Layout Fix (sidebar + main) ---------------- */
 
-html, body {
-    height: 100%;
-  }
-  
-  body {
-    margin: 0;
-    background: #050714; /* stop the white background */
-  }
-  
-  /* Shell holds sidebar + main */
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #050714; /* stop the white background */
+}
+
+/* Shell holds sidebar + main */
+.shell {
+  min-height: 100vh;
+  display: flex;
+  background: radial-gradient(
+      1200px 600px at 20% 15%,
+      rgba(99, 102, 241, 0.25),
+      transparent 55%
+    ),
+    radial-gradient(
+      900px 500px at 80% 25%,
+      rgba(236, 72, 153, 0.18),
+      transparent 60%
+    ),
+    linear-gradient(180deg, #050714, #070a1f 45%, #040514);
+}
+
+/* Sidebar is normal flow on desktop (NOT fixed) */
+.sidebar {
+  flex: 0 0 260px;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  overflow-y: auto;
+  z-index: 20;
+}
+
+/* Main takes the rest; prevents overlap */
+.main {
+  flex: 1;
+  min-width: 0;
+  padding: 16px;
+  overflow-x: hidden;
+}
+
+/* Optional: make content panels look nicer on large screens */
+.main > * {
+  max-width: 1200px;
+}
+
+/* ---------------- Mobile behavior: sidebar becomes drawer ---------------- */
+
+@media (max-width: 900px) {
   .shell {
-    min-height: 100vh;
-    display: flex;
-    background:
-      radial-gradient(1200px 600px at 20% 15%, rgba(99,102,241,.25), transparent 55%),
-      radial-gradient(900px 500px at 80% 25%, rgba(236,72,153,.18), transparent 60%),
-      linear-gradient(180deg, #050714, #070a1f 45%, #040514);
+    display: block;
   }
-  
-  /* Sidebar is normal flow on desktop (NOT fixed) */
+
+  /* sidebar slides in, main is full width */
   .sidebar {
-    flex: 0 0 260px;
-    height: 100vh;
-    position: sticky;
+    position: fixed;
+    left: 0;
     top: 0;
-    overflow-y: auto;
-    z-index: 20;
+    height: 100vh;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    z-index: 40;
   }
-  
-  /* Main takes the rest; prevents overlap */
+
+  .sidebar.open {
+    transform: translateX(0);
+  }
+
   .main {
-    flex: 1;
-    min-width: 0;
-    padding: 16px;
-    overflow-x: hidden;
+    padding: 14px;
+    width: 100%;
+    max-width: none;
   }
-  
-  /* Optional: make content panels look nicer on large screens */
+
   .main > * {
-    max-width: 1200px;
+    max-width: none;
   }
-  
-  /* ---------------- Mobile behavior: sidebar becomes drawer ---------------- */
-  
-  @media (max-width: 900px) {
-    .shell {
-      display: block;
-    }
-  
-    /* sidebar slides in, main is full width */
-    .sidebar {
-      position: fixed;
-      left: 0;
-      top: 0;
-      height: 100vh;
-      transform: translateX(-100%);
-      transition: transform .2s ease;
-      z-index: 40;
-    }
-  
-    .sidebar.open {
-      transform: translateX(0);
-    }
-  
-    .main {
-      padding: 14px;
-      width: 100%;
-      max-width: none;
-    }
-  
-    .main > * {
-      max-width: none;
-    }
-  }
-  
-  /* --- Fix: inputs overlapping inside .field panels --- */
+}
+
+/* --- Fix: inputs overlapping inside .field panels --- */
 
 /* make .field a proper container */
 .field {
-    padding: 12px !important;
-    overflow: hidden;          /* stops visual spill */
-  }
-  
-  /* input/select should not add their own spacing that breaks the box */
-  .field .input,
-  .field input,
-  .field select {
-    display: block;
-    width: 100%;
-    margin: 0 !important;
-    box-sizing: border-box;
-    height: 48px;              /* consistent height */
-    border-radius: 12px;
-  }
-  
-  /* if your global .input has line-height weirdness */
-  .field input,
-  .field select {
-    line-height: normal;
-  }
-  
-  /* if your global .input has position or transform (rare but possible) */
-  .field .input {
-    position: static !important;
-    transform: none !important;
-  }
-  
+  padding: 12px !important;
+  overflow: hidden; /* stops visual spill */
+}
+
+/* input/select should not add their own spacing that breaks the box */
+.field .input,
+.field input,
+.field select {
+  display: block;
+  width: 100%;
+  margin: 0 !important;
+  box-sizing: border-box;
+  height: 48px; /* consistent height */
+  border-radius: 12px;
+}
+
+/* if your global .input has line-height weirdness */
+.field input,
+.field select {
+  line-height: normal;
+}
+
+/* if your global .input has position or transform (rare but possible) */
+.field .input {
+  position: static !important;
+  transform: none !important;
+}

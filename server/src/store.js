@@ -11,8 +11,8 @@ const PHASES = {
 }
 
 const ROUND_PRESETS = {
-  [PHASES.EASY]: { seconds: 10, allowedValues: [100, 200, 300, 400] },
-  [PHASES.AVERAGE]: { seconds: 15, allowedValues: [200, 400, 600, 800] },
+  [PHASES.EASY]: { seconds: 10, allowedValues: [10, 20, 30, 40] },
+  [PHASES.AVERAGE]: { seconds: 15, allowedValues: [20, 40, 60, 80] },
   [PHASES.DIFFICULT]: { seconds: 30, allowedValues: [] }, // values are bets
   [PHASES.JACKPOT]: { seconds: 30, allowedValues: [] }, // can be custom
   [PHASES.TIE_BREAKER]: { seconds: 30, allowedValues: [] },

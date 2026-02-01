@@ -19,7 +19,7 @@ export default function Assignments() {
   const [toast, setToast] = useState({}); // { p1: "Saved!" }
   const [error, setError] = useState({}); // { p1: "..." }
 
-  // Sync local when proctors list arrives/changes (first load or auto-assign updates)
+  // Sync local when proctors list arrives/changes
   useEffect(() => {
     const obj = {};
     for (const p of proctors) obj[p.id] = p.teamIds ?? [];
@@ -49,11 +49,7 @@ export default function Assignments() {
       }
 
       if (cur.length >= 5) {
-        // UI rule: max 5
-        setError((e) => ({
-          ...e,
-          [proctorId]: "Max 5 teams per proctor.",
-        }));
+        setError((e) => ({ ...e, [proctorId]: "Max 5 teams per proctor." }));
         return prev;
       }
 
@@ -74,10 +70,8 @@ export default function Assignments() {
 
     try {
       await assignProctor(proctorId, local[proctorId] || []);
-      setToast((t) => ({ ...t, [proctorId]: "Saved ✅" }));
-      setTimeout(() => {
-        setToast((t) => ({ ...t, [proctorId]: "" }));
-      }, 1200);
+      setToast((t) => ({ ...t, [proctorId]: "Saved." }));
+      setTimeout(() => setToast((t) => ({ ...t, [proctorId]: "" })), 1200);
     } catch (e) {
       setError((err) => ({
         ...err,
@@ -100,309 +94,387 @@ export default function Assignments() {
   }
 
   return (
-    <div className="asg-root">
+    <div className="gh-asg">
       <style>{`
-        .asg-root{ color:#fff; }
-        .asg-hero{
-          border-radius:18px;
-          border:1px solid rgba(255,255,255,.12);
-          background:#000;
-          padding:14px 16px;
+        .gh-asg{
+          --bg:#0d1117;
+          --panel:#161b22;
+          --panel2:#0f141b;
+          --border:#30363d;
+          --text:#c9d1d9;
+          --muted:#8b949e;
+          --accent:#0425e0;
+          --danger:#f85149;
+          --ok:#3fb950;
+          --shadow: 0 0 0 1px var(--border);
+          color: var(--text);
         }
-        .asg-title{
+        .wrap{
+          max-width: 1200px;
+          margin: 0 auto;
+          padding: 16px;
+        }
+
+        /* Header */
+        .header{
+          display:flex;
+          justify-content:space-between;
+          gap:12px;
+          flex-wrap:wrap;
+          align-items:flex-start;
+          margin-bottom: 12px;
+        }
+        .title{
           margin:0;
           font-size:20px;
-          font-weight:1000;
-          letter-spacing:.08em;
-          text-transform:uppercase;
+          font-weight:900;
         }
-        .asg-sub{
-          margin-top:6px;
-          color:rgba(255,255,255,.7);
-          font-size:13px;
-          line-height:1.35;
-        }
-        .asg-actions{
-          margin-top:12px;
-          display:flex;
-          gap:10px;
-          flex-wrap:wrap;
-          align-items:center;
-          justify-content:space-between;
-        }
-        .asg-bigbtn{
-          border:none;
-          cursor:pointer;
-          font-weight:1000;
-          border-radius:14px;
-          padding:12px 14px;
-          background:linear-gradient(90deg,#22d3ee,#a78bfa);
-          color:#041018;
-          box-shadow:0 14px 26px rgba(0,0,0,.28);
-          touch-action: manipulation;
-        }
-        .asg-bigbtn:active{ transform: translateY(1px); }
-
-        .asg-grid{
-          margin-top:12px;
-          display:grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap:12px;
-        }
-
-        .asg-panel{
-          border-radius:18px;
-          border:1px solid rgba(255,255,255,.12);
-          background:#06070f;
-          padding:14px;
-          box-shadow: 0 14px 45px rgba(0,0,0,.28);
-        }
-
-        .asg-head{
-          display:flex;
-          justify-content:space-between;
-          gap:12px;
-          align-items:flex-start;
-          flex-wrap:wrap;
-        }
-
-        .asg-name{
-          font-weight:1000;
-          font-size:16px;
-        }
-        .asg-meta{
+        .sub{
           margin-top:4px;
           font-size:12px;
-          color:rgba(255,255,255,.7);
+          color: var(--muted);
+          line-height: 1.35;
+          max-width: 760px;
         }
 
-        .asg-row{
+        .actions{
           display:flex;
           gap:10px;
-          flex-wrap:wrap;
           align-items:center;
-          margin-top:10px;
-        }
-
-        .asg-input{
-          width: 100%;
-          border-radius: 14px;
-          border: 1px solid rgba(255,255,255,.14);
-          background: #000;
-          color: #fff;
-          padding: 10px 12px;
-          outline: none;
-          font-weight: 800;
-        }
-
-        .asg-btn{
-          border-radius: 14px;
-          padding: 10px 12px;
-          border: 1px solid rgba(255,255,255,.14);
-          background: rgba(255,255,255,.08);
-          color:#fff;
-          font-weight: 1000;
-          cursor:pointer;
-        }
-        .asg-btn.primary{
-          background: linear-gradient(90deg, rgba(34,211,238,.95), rgba(167,139,250,.95));
-          color:#051020;
-          border:none;
-        }
-        .asg-btn.danger{
-          background: rgba(239,68,68,.18);
-          border-color: rgba(239,68,68,.35);
-        }
-        .asg-btn:disabled{
-          opacity:.6;
-          cursor:not-allowed;
-        }
-
-        .asg-chips{
-          display:flex;
-          gap:8px;
           flex-wrap:wrap;
-          margin-top:10px;
+        }
+
+        .btn{
+          height: 34px;
+          border-radius: 6px;
+          border: 1px solid var(--border);
+          background: var(--panel2);
+          color: var(--text);
+          font-weight: 800;
+          cursor:pointer;
+          padding: 0 12px;
+          display:inline-flex;
+          align-items:center;
+          justify-content:center;
+          user-select:none;
+        }
+        .btn:disabled{ opacity:.6; cursor:not-allowed; }
+        .btn.primary{
+          border-color: rgba(4,37,224,.70);
+          background: rgba(4,37,224,.18);
+        }
+        .btn.danger{
+          border-color: rgba(248,81,73,.60);
+          background: rgba(248,81,73,.12);
+          color: #ffd7d5;
+        }
+
+        /* Layout */
+        .grid{
+          display:grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 12px;
+        }
+
+        .card{
+          background: var(--panel);
+          box-shadow: var(--shadow);
+          border-radius: 10px;
+          padding: 12px;
+          min-width:0;
+        }
+
+        .cardHead{
+          display:flex;
+          justify-content:space-between;
+          align-items:flex-start;
+          gap: 10px;
+          flex-wrap:wrap;
+          margin-bottom: 10px;
+        }
+        .pname{
+          font-size: 20px;
+          font-weight: 900;
+          margin: 0;
+        }
+        .meta{
+          margin-top: 4px;
+          color: var(--muted);
+          font-size: 12px;
+        }
+
+        .rightBtns{
+          display:flex;
+          gap: 8px;
+          align-items:center;
+        }
+
+        /* Search */
+        .search{
+          width:96%;
+          height: 34px;
+          border-radius: 6px;
+          border: 1px solid var(--border);
+          background: var(--panel2);
+          color: var(--text);
+          padding: 0 10px;
+          outline:none;
+          font-weight: 700;
+        }
+        .search:focus{
+          border-color: var(--accent);
+          box-shadow: 0 0 0 3px rgba(4,37,224,.25);
+        }
+
+        /* Selected chips */
+        .chips{
+          display:flex;
+          flex-wrap:wrap;
+          gap: 6px;
+          margin-top: 10px;
         }
         .chip{
           display:inline-flex;
           align-items:center;
-          gap:8px;
-          padding: 8px 10px;
+          gap: 8px;
+          padding: 6px 10px;
           border-radius: 999px;
-          border:1px solid rgba(255,255,255,.14);
-          background: rgba(255,255,255,.06);
-          font-weight: 900;
+          background: var(--panel2);
+          border: 1px solid var(--border);
           font-size: 12px;
+          font-weight: 800;
+          color: var(--text);
         }
-        .chip button{
-          border:none;
-          background: rgba(255,255,255,.12);
-          color:#fff;
+        .chip small{ color: var(--muted); font-weight:700; }
+        .x{
+          width: 20px;
+          height: 20px;
           border-radius: 999px;
-          width: 22px;
-          height: 22px;
+          border: 1px solid var(--border);
+          background: transparent;
+          color: var(--muted);
           cursor:pointer;
-          font-weight:1000;
-        }
-
-        .asg-list{
-          margin-top: 10px;
+          font-weight: 900;
+          line-height: 1;
           display:flex;
-          flex-direction:column;
-          gap:8px;
-          max-height: 320px;
-          overflow:auto;
-          padding-right: 4px;
+          align-items:center;
+          justify-content:center;
+        }
+        .x:hover{
+          color: var(--text);
+          border-color: rgba(4,37,224,.6);
+          box-shadow: 0 0 0 3px rgba(4,37,224,.15);
         }
 
-        .teamBtn{
+        /* Team list */
+        .list{
+          margin-top: 10px;
+          border-radius: 10px;
+          box-shadow: var(--shadow);
+          overflow:hidden;
+          max-height: 360px;
+          overflow-y:auto;
+          background: var(--panel2);
+        }
+        .team{
           width:100%;
           display:flex;
-          justify-content: space-between;
+          justify-content:space-between;
           align-items:center;
           gap: 10px;
-          border-radius: 14px;
-          border: 1px solid rgba(255,255,255,.12);
-          background: rgba(255,255,255,.05);
-          color:#fff;
-          padding: 12px 12px;
-          font-weight: 900;
+          padding: 10px 10px;
+          border: none;
+          border-top: 1px solid rgba(48,54,61,.65);
+          background: transparent;
+          color: var(--text);
           cursor:pointer;
           text-align:left;
-          touch-action: manipulation;
+          font-weight: 800;
         }
-        .teamBtn:hover{ background: rgba(255,255,255,.08); }
+        .team:first-child{ border-top:none; }
+        .team:hover{ background: rgba(4,37,224,.08); }
 
-        .teamBtn.on{
-          border-color: rgba(34,197,94,.35);
-          background: rgba(34,197,94,.10);
+        .left{
+          display:flex;
+          flex-direction:column;
+          gap: 2px;
+          min-width: 0;
         }
-
-        .teamSub{
-          color: rgba(255,255,255,.65);
+        .tname{
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .tid{
+          font-size: 12px;
+          color: var(--muted);
           font-weight: 700;
+        }
+        .tag{
+          font-size: 12px;
+          color: var(--muted);
+          font-weight: 800;
+          white-space: nowrap;
+        }
+
+        .team.on{
+          background: rgba(4,37,224,.14);
+        }
+        .team.on .tag{
+          color: #dbeafe;
+        }
+
+        /* Messages */
+        .msg{
+          margin-top: 10px;
+          border-radius: 6px;
+          padding: 8px 10px;
+          border: 1px solid var(--border);
+          background: var(--panel2);
+          font-weight: 800;
           font-size: 12px;
         }
+        .msg.ok{
+          border-color: rgba(63,185,80,.55);
+          background: rgba(63,185,80,.10);
+          color: #d2fedb;
+        }
+        .msg.err{
+          border-color: rgba(248,81,73,.60);
+          background: rgba(248,81,73,.12);
+          color: #ffd7d5;
+        }
 
-        .msg-ok{ color: rgba(34,197,94,1); font-weight: 900; margin-top: 8px; }
-        .msg-err{ color: rgba(248,113,113,1); font-weight: 900; margin-top: 8px; }
+        .foot{
+          margin-top: 10px;
+          font-size: 12px;
+          color: var(--muted);
+          line-height: 1.35;
+        }
 
-        @media (max-width: 900px){
-          .asg-grid{ grid-template-columns: 1fr; }
-          .asg-list{ max-height: 260px; }
+        @media (max-width: 920px){
+          .grid{ grid-template-columns: 1fr; }
+          .list{ max-height: 280px; }
         }
       `}</style>
 
-      <div className="asg-hero">
-        <h1 className="asg-title">Assignments</h1>
-        <div className="asg-sub">
-          Assign up to <b>5 teams</b> per proctor. Auto-Assign uses seat order and balances across 8 proctors.
-        </div>
+      <div className="wrap">
+        <div className="header">
+          <div>
+            <h1 className="title">ASSIGNMENTS</h1>
+            <div className="sub">
+              Assign up to <b>5 teams</b> per proctor. Auto-Assign uses seat order and balances across 8 proctors.
+              After auto-assign, adjust teams per proctor then hit <b>Save</b>.
+            </div>
+          </div>
 
-        <div className="asg-actions">
-          <button className="asg-bigbtn" onClick={runAutoAssign}>
-            ⚡ Auto-Assign (Seat Order)
-          </button>
-          <div className="asg-sub">
-            Tip: After auto-assign, tap a proctor panel to adjust teams then <b>Save</b>.
+          <div className="actions">
+            <button className="btn primary" onClick={runAutoAssign}>
+              Auto-Assign
+            </button>
           </div>
         </div>
-      </div>
 
-      <div className="asg-grid">
-        {proctors.map((p) => {
-          const selectedIds = local[p.id] || [];
-          const selectedTeams = selectedIds.map((id) => teamsById.get(id)).filter(Boolean);
+        <div className="grid">
+          {proctors.map((p) => {
+            const selectedIds = local[p.id] || [];
+            const selectedTeams = selectedIds.map((id) => teamsById.get(id)).filter(Boolean);
 
-          const q = (query[p.id] || "").trim().toLowerCase();
-          const filteredTeams =
-            q.length === 0
-              ? teams
-              : teams.filter((t) => t.name.toLowerCase().includes(q) || t.id.toLowerCase().includes(q));
+            const q = (query[p.id] || "").trim().toLowerCase();
+            const filtered =
+              q.length === 0
+                ? teams
+                : teams.filter(
+                    (t) =>
+                      t.name.toLowerCase().includes(q) ||
+                      t.id.toLowerCase().includes(q)
+                  );
 
-          return (
-            <div className="asg-panel" key={p.id}>
-              <div className="asg-head">
-                <div>
-                  <div className="asg-name">🎧 {p.name}</div>
-                  <div className="asg-meta">{selectedIds.length}/5 teams assigned</div>
+            return (
+              <div className="card" key={p.id}>
+                <div className="cardHead">
+                  <div>
+                    <div className="pname">{p.name}</div>
+                    <div className="meta">{selectedIds.length}/5 teams assigned</div>
+                  </div>
+
+                  <div className="rightBtns">
+                    <button
+                      className="btn danger"
+                      onClick={() => clearAll(p.id)}
+                      disabled={selectedIds.length === 0}
+                      title="Clear selection"
+                    >
+                      Clear
+                    </button>
+                    <button
+                      className="btn primary"
+                      onClick={() => save(p.id)}
+                      disabled={!!saving[p.id]}
+                      title="Save to server"
+                    >
+                      {saving[p.id] ? "Saving…" : "Save"}
+                    </button>
+                  </div>
                 </div>
 
-                <div className="asg-row" style={{ marginTop: 0 }}>
-                  <button
-                    className="asg-btn danger"
-                    onClick={() => clearAll(p.id)}
-                    disabled={selectedIds.length === 0}
-                    title="Clear all selected teams"
-                  >
-                    Clear
-                  </button>
-                  <button
-                    className="asg-btn primary"
-                    onClick={() => save(p.id)}
-                    disabled={saving[p.id]}
-                    title="Save assignments to server"
-                  >
-                    {saving[p.id] ? "Saving..." : "Save"}
-                  </button>
-                </div>
-              </div>
-
-              <div className="asg-row">
                 <input
-                  className="asg-input"
-                  placeholder="Search team name…"
+                  className="search"
+                  placeholder="Search teams…"
                   value={query[p.id] || ""}
                   onChange={(e) => setQuery((prev) => ({ ...prev, [p.id]: e.target.value }))}
                 />
-              </div>
 
-              {selectedTeams.length > 0 && (
-                <div className="asg-chips">
-                  {selectedTeams.map((t) => (
-                    <span className="chip" key={t.id}>
-                      {t.name}
-                      <button onClick={() => toggle(p.id, t.id)} title="Remove">
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              )}
-
-              <div className="asg-list">
-                {teams.length === 0 ? (
-                  <div className="asg-meta">No teams yet. Go to Teams page first.</div>
-                ) : (
-                  filteredTeams.map((t) => {
-                    const on = isSelected(p.id, t.id);
-                    return (
-                      <button
-                        key={t.id}
-                        className={`teamBtn ${on ? "on" : ""}`}
-                        onClick={() => toggle(p.id, t.id)}
-                      >
-                        <div>
-                          {on ? "✅ " : ""}{t.name}
-                          <div className="teamSub">{t.id}</div>
-                        </div>
-                        <div className="teamSub">{on ? "ASSIGNED" : "tap to assign"}</div>
-                      </button>
-                    );
-                  })
+                {selectedTeams.length > 0 && (
+                  <div className="chips">
+                    {selectedTeams.map((t) => (
+                      <span className="chip" key={t.id} title={t.id}>
+                        <span className="tname">{t.name}</span>
+                        <small>{t.id}</small>
+                        <button className="x" onClick={() => toggle(p.id, t.id)} aria-label="Remove">
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
                 )}
-              </div>
 
-              {toast[p.id] && <div className="msg-ok">{toast[p.id]}</div>}
-              {error[p.id] && <div className="msg-err">{error[p.id]}</div>}
+                <div className="list" role="list">
+                  {teams.length === 0 ? (
+                    <div className="msg err" style={{ margin: 10 }}>
+                      No teams yet. Go to Teams page first.
+                    </div>
+                  ) : (
+                    filtered.map((t) => {
+                      const on = isSelected(p.id, t.id);
+                      return (
+                        <button
+                          key={t.id}
+                          className={`team ${on ? "on" : ""}`}
+                          onClick={() => toggle(p.id, t.id)}
+                          role="listitem"
+                        >
+                          <div className="left">
+                            <div className="tname">{t.name}</div>
+                            <div className="tid">{t.id}</div>
+                          </div>
+                          <div className="tag">{on ? "Assigned" : "Tap to assign"}</div>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
 
-              <div className="asg-meta" style={{ marginTop: 10 }}>
-                Server rule: a team can’t be assigned to two proctors. If Save fails, remove it from the other proctor.
+                {toast[p.id] && <div className="msg ok">{toast[p.id]}</div>}
+                {error[p.id] && <div className="msg err">{error[p.id]}</div>}
+
+                <div className="foot">
+                  Server rule: a team can’t be assigned to two proctors. If Save fails, remove it from the other proctor and try again.
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </div>
   );

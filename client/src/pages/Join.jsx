@@ -1,297 +1,391 @@
 // client/src/pages/Join.jsx
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { socket } from "../socket";
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { socket } from '../socket'
 
-// Game-show Join screen (mobile friendly)
+// GitHub-like Join screen (mobile friendly)
 // Validates Game ID via GET /api/game using x-game-id header.
 
 export default function Join() {
-  const [gameId, setGameId] = useState(localStorage.getItem("gameId") || "");
-  const [err, setErr] = useState("");
-  const [busy, setBusy] = useState(false);
-  const navigate = useNavigate();
+  const [gameId, setGameId] = useState(localStorage.getItem('gameId') || '')
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+  const navigate = useNavigate()
 
   const apiBase = useMemo(
-    () => import.meta.env.VITE_API_URL || "http://localhost:4000/api",
+    () => import.meta.env.VITE_API_URL || 'http://localhost:4000/api',
     []
-  );
+  )
 
   useEffect(() => {
-    // nice UX: clear error when user types again
-    if (err) setErr("");
+    if (err) setErr('')
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameId]);
+  }, [gameId])
 
   async function submit(e) {
-    e.preventDefault();
-    setErr("");
+    e.preventDefault()
+    setErr('')
 
-    const code = gameId.trim();
+    const code = gameId.trim()
     if (!code) {
-      setErr("Enter the Game ID to join.");
-      return;
+      setErr('Enter the Game ID to join.')
+      return
     }
 
-    setBusy(true);
+    setBusy(true)
 
     try {
       const res = await fetch(`${apiBase}/game`, {
-        headers: { "x-game-id": code },
-      });
+        headers: { 'x-game-id': code },
+      })
 
-      const json = await res.json().catch(() => ({}));
+      const json = await res.json().catch(() => ({}))
 
       if (!res.ok || !json.ok) {
-        throw new Error(json.error || "INVALID_GAME_ID");
+        throw new Error(json.error || 'INVALID_GAME_ID')
       }
 
-      localStorage.setItem("gameId", code);
+      localStorage.setItem('gameId', code)
 
-      socket.auth = { gameId: code };
-      socket.disconnect();
-      socket.connect();
+      socket.auth = { gameId: code }
+      socket.disconnect()
+      socket.connect()
 
-      navigate("/controller", { replace: true });
+      navigate('/controller', { replace: true })
     } catch {
-      setErr("Invalid Game ID. Ask the Game Master for the correct code.");
-      localStorage.removeItem("gameId");
+      setErr('Invalid Game ID. Ask the Game Master for the correct code.')
+      localStorage.removeItem('gameId')
     } finally {
-      setBusy(false);
+      setBusy(false)
     }
   }
 
+  const normalized = gameId.toUpperCase()
+
   return (
-    <div className="join-root">
-      {/* Inline CSS for this page only (no need to touch ui.css) */}
+    <div className="gh-join">
       <style>{`
-        .join-root{
+        /* Page */
+        .gh-join{
           min-height:100vh;
           display:flex;
           align-items:center;
           justify-content:center;
           padding:18px;
-          background:
-            radial-gradient(1200px 600px at 20% 15%, rgba(99,102,241,.35), transparent 55%),
-            radial-gradient(900px 500px at 80% 25%, rgba(236,72,153,.28), transparent 60%),
-            radial-gradient(900px 500px at 50% 95%, rgba(34,211,238,.18), transparent 55%),
-            linear-gradient(180deg, #050714, #070a1f 45%, #040514);
-          color:#fff;
+          background:#0d1117; /* GitHub dark */
+          color:#c9d1d9;
         }
-        .join-card{
+
+        /* Container */
+        .gh-wrap{
           width:100%;
-          max-width:460px;
-          border-radius:22px;
-          padding:18px;
-          border:1px solid rgba(255,255,255,.14);
-          background: rgba(10, 14, 38, .65);
-          backdrop-filter: blur(10px);
-          box-shadow:
-            0 24px 70px rgba(0,0,0,.55),
-            0 0 0 1px rgba(255,255,255,.06) inset;
-          position:relative;
-          overflow:hidden;
+          max-width:420px;
         }
-        .join-card:before{
-          content:"";
-          position:absolute;
-          inset:-2px;
-          background:
-            radial-gradient(500px 160px at 10% 10%, rgba(99,102,241,.25), transparent 60%),
-            radial-gradient(420px 160px at 90% 15%, rgba(236,72,153,.20), transparent 60%),
-            radial-gradient(520px 220px at 50% 120%, rgba(34,211,238,.16), transparent 65%);
-          pointer-events:none;
-          filter: blur(0px);
-        }
-        .join-top{
-          position:relative;
+
+        /* Title */
+        .gh-brand{
           display:flex;
-          gap:12px;
           align-items:center;
-          justify-content:space-between;
-          margin-bottom:10px;
+          justify-content:center;
+          gap:10px;
+          margin-bottom:14px;
+          color:#e6edf3;
+          font-weight:900;
+          letter-spacing:.02em;
         }
-        .show-badge{
-          display:inline-flex;
-          align-items:center;
-          gap:8px;
-          padding:8px 12px;
-          border-radius:999px;
+        .gh-logo{
+          width:38px;height:38px;border-radius:12px;
+          background:#161b22;
+          border:1px solid #30363d;
+          display:grid;
+          place-items:center;
+          box-shadow: 0 10px 26px rgba(0,0,0,.35);
+          font-size:18px;
+        }
+        .gh-title{
+          text-align:center;
+          margin: 0 0 10px;
+          font-size:20px;
+          font-weight:900;
+          color:#e6edf3;
+        }
+        .gh-sub{
+          text-align:center;
+          margin: 0 0 16px;
+          font-size:13px;
+          line-height:1.4;
+          color:#8b949e;
+        }
+
+        /* Card */
+        .gh-card{
+          background:#161b22;
+          border:1px solid #30363d;
+          border-radius:12px;
+          padding:16px;
+          box-shadow: 0 12px 34px rgba(0,0,0,.35);
+        }
+
+        /* Label + input */
+        .gh-label{
+          display:block;
+          font-size:12px;
+          font-weight:800;
+          color:#c9d1d9;
+          margin-bottom:8px;
+        }
+
+        .gh-input{
+          width:93%;
+          height:44px;
+          border-radius:10px;
+          border:1px solid #30363d;
+          background:#0d1117;
+          color:#e6edf3;
+          padding: 0 12px;
+          outline:none;
+          font-size:14px;
           font-weight:800;
           letter-spacing:.12em;
           text-transform:uppercase;
-          font-size:12px;
-          border:1px solid rgba(255,255,255,.16);
-          background: rgba(255,255,255,.08);
-          box-shadow: 0 10px 20px rgba(0,0,0,.25);
+          box-shadow: inset 0 0 0 1px rgba(0,0,0,.25);
         }
-        .pulse-dot{
-          width:10px;height:10px;border-radius:99px;
-          background: #22c55e;
-          box-shadow: 0 0 0 0 rgba(34,197,94,.55);
-          animation: pulse 1.4s infinite;
-        }
-        @keyframes pulse{
-          0%{ box-shadow: 0 0 0 0 rgba(34,197,94,.55); }
-          70%{ box-shadow: 0 0 0 10px rgba(34,197,94,0); }
-          100%{ box-shadow: 0 0 0 0 rgba(34,197,94,0); }
-        }
-        .join-title{
-          position:relative;
-          font-size:30px;
-          font-weight:1000;
-          line-height:1.05;
-          margin:6px 0 4px;
-          text-shadow: 0 8px 30px rgba(0,0,0,.55);
-          letter-spacing:-.02em;
-        }
-        .join-sub{
-          position:relative;
-          color: rgba(255,255,255,.78);
-          line-height:1.35;
-          margin: 0 0 14px;
-          font-size:14px;
-        }
-        .join-form{
-          position:relative;
-          display:grid;
-          gap:10px;
-        }
-        .join-input{
-          height:56px;
-          border-radius:16px;
-          border:1px solid rgba(255,255,255,.18);
-          background: rgba(255,255,255,.07);
-          color:#fff;
-          padding: 0 16px;
-          font-size:18px;
-          font-weight:800;
+        .gh-input::placeholder{
+          color:#6e7681;
           letter-spacing:.08em;
-          text-transform:uppercase;
-          outline:none;
-          box-shadow: 0 10px 22px rgba(0,0,0,.25);
-        }
-        .join-input::placeholder{
-          color: rgba(255,255,255,.45);
-          letter-spacing:.06em;
-          text-transform:none;
           font-weight:700;
         }
-        .join-input:focus{
-          border-color: rgba(34,211,238,.6);
-          box-shadow: 0 0 0 4px rgba(34,211,238,.15), 0 10px 22px rgba(0,0,0,.25);
+        .gh-input:focus{
+          border-color:#1f6feb;
+          box-shadow: 0 0 0 3px rgba(31,111,235,.25);
         }
-        .hint-row{
+
+        /* Help row */
+        .gh-row{
           display:flex;
+          align-items:center;
           justify-content:space-between;
           gap:10px;
+          margin-top:10px;
           font-size:12px;
-          color: rgba(255,255,255,.65);
-          padding: 0 4px;
+          color:#8b949e;
         }
-        .error-banner{
-          border-radius:14px;
-          padding:12px 12px;
-          border:1px solid rgba(248,113,113,.35);
-          background: rgba(220,38,38,.18);
-          color:#ffecec;
+        .gh-pill{
+          display:inline-flex;
+          align-items:center;
+          gap:8px;
+          padding:6px 10px;
+          border:1px solid #30363d;
+          background:#0d1117;
+          border-radius:999px;
+          color:#8b949e;
+          font-weight:700;
+          white-space:nowrap;
+        }
+        .dot{
+          width:8px;height:8px;border-radius:99px;
+          background:${busy ? '#f85149' : '#0425e0'};
+          box-shadow: 0 0 0 2px rgba(0,0,0,.25);
+        }
+
+        /* Error */
+        .gh-error{
+          margin-top:12px;
+          border-radius:10px;
+          padding:10px 12px;
+          border:1px solid rgba(248,81,73,.55);
+          background: rgba(248,81,73,.12);
+          color:#ffdcd7;
           font-weight:800;
-          line-height:1.25;
+          font-size:12.5px;
+          line-height:1.3;
         }
-        .join-btn{
-          height:56px;
-          border-radius:16px;
-          border: none;
-          cursor:pointer;
-          font-weight:1000;
-          font-size:18px;
+
+        /* Button */
+        .gh-btn{
+          width:100%;
+          margin-top:12px;
+          height:44px;
+          border-radius:10px;
+          border:1px solid rgba(240,246,252,.10);
+          background:#0425e0; /* GitHub green */
+          color:#fff;
+          font-weight:900;
+          font-size:14px;
           letter-spacing:.02em;
-          color:#061022;
-          background: linear-gradient(90deg, #22d3ee, #a78bfa 45%, #fb7185);
-          box-shadow: 0 14px 28px rgba(0,0,0,.35);
-          transition: transform .06s ease, filter .2s ease;
+          cursor:pointer;
+          transition: filter .15s ease, transform .05s ease;
           touch-action: manipulation;
         }
-        .join-btn:active{
-          transform: translateY(1px) scale(.99);
-        }
-        .join-btn:disabled{
+        .gh-btn:hover{ filter: brightness(1.05); }
+        .gh-btn:active{ transform: translateY(1px); }
+        .gh-btn:disabled{
+          opacity:.65;
           cursor:not-allowed;
-          filter: grayscale(.2) brightness(.9);
-          opacity:.85;
+          filter: grayscale(.2);
         }
-        .footer-note{
+
+        /* Footer note */
+        .gh-foot{
           margin-top:12px;
-          color: rgba(255,255,255,.62);
-          font-size:12px;
-          line-height:1.35;
           text-align:center;
+          font-size:12px;
+          color:#8b949e;
+          line-height:1.35;
         }
         .kbd{
           display:inline-block;
-          padding:2px 8px;
-          border-radius:999px;
-          border:1px solid rgba(255,255,255,.18);
-          background: rgba(255,255,255,.07);
-          color: rgba(255,255,255,.8);
+          padding:1px 7px;
+          border-radius:6px;
+          border:1px solid #30363d;
+          background:#0d1117;
+          color:#c9d1d9;
           font-weight:900;
           letter-spacing:.06em;
+          font-size:11px;
         }
 
-        /* Mobile tightening */
+        /* Mobile tweaks */
         @media (max-width: 420px){
-          .join-card{ padding:16px; border-radius:20px; }
-          .join-title{ font-size:26px; }
-          .join-input, .join-btn{ height:54px; font-size:17px; }
+          .gh-card{ padding:14px; }
+          .gh-title{ font-size:19px; }
         }
+
+        .brand-stack{
+  margin-top: 14px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:10px;
+}
+
+.brand-logo{
+  width:72px;
+  height:72px;
+  object-fit:contain;
+  border-radius:50px;
+  background:#0b102a;
+  padding:8px;
+  box-shadow:
+    0 14px 30px rgba(0,0,0,.55),
+    0 0 0 1px rgba(255,255,255,.12);
+}
+
+.brand-title{
+  font-size:22px;
+  font-weight:1000;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color:#fff;
+  text-shadow:0 6px 22px rgba(0,0,0,.6);
+}
+
+@media (max-width: 420px){
+  .brand-logo{ width:64px; height:64px; }
+  .brand-title{ font-size:20px; }
+}
+
+.join-top{
+  position:relative;
+  display:flex;
+  justify-content:center; /* or center if you want */
+  margin-bottom:20px;
+  margin-top: 20px
+}
+
+.show-badge{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:8px 12px;
+  border-radius:999px;
+  font-weight:800;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  font-size:12px;
+  border:1px solid rgba(255,255,255,.16);
+  background:#111827; /* solid, no transparency */
+  box-shadow: 0 10px 20px rgba(0,0,0,.25);
+}
+
+.pulse-dot{
+  width:10px;height:10px;border-radius:99px;
+  background:#0425e0;
+  box-shadow: 0 0 0 0 rgba(34,197,94,.55);
+  animation:pulse 1.4s infinite;
+}
+
+
+
       `}</style>
 
-      <div className="join-card">
+      <div className="gh-wrap">
+        
+
+        {/* LOGO + TITLE */}
+        <div className="brand-stack">
+          <img
+            src="https://scontent.fdvo2-2.fna.fbcdn.net/v/t39.30808-6/617414986_897207706001715_5952680201901177609_n.jpg?_nc_cat=111&ccb=1-7&_nc_sid=6ee11a&_nc_ohc=wIcK7oBeduoQ7kNvwGarsts&_nc_oc=AdnsHecgGf84CRccAAgPvJ2VkEkNus196u8oJf6YpjbiEZ19CTzo1VUG-njPL4YwmTg&_nc_zt=23&_nc_ht=scontent.fdvo2-2.fna&_nc_gid=3F38v9l2bHDXTekIANn0OA&oh=00_AftnZUfVEy-3zEeikqC3a11pCtl-7cTemlWBfEBNsPUdGw&oe=69854B03"
+            alt="COSS Logo"
+            className="brand-logo"
+          />
+          <div className="brand-title">COSS JEOPARDY</div>
+        </div>
+
         <div className="join-top">
           <div className="show-badge">
             <span className="pulse-dot" />
             LIVE SCOREBOARD
           </div>
-          <div className="show-badge" style={{ letterSpacing: ".08em" }}>
-            COSS JEOPARDY
-          </div>
         </div>
-
-        <div className="join-title">Enter the Game Code</div>
-        <div className="join-sub">
-          Ask the Game Master for the code, then press <span className="kbd">JOIN</span>.
+        <p className="gh-sub">
+          Enter the Game ID from the Game Master to join.
           <br />
-          Pro tip: keep your phone screen awake during the round.
+          Tip: keep your phone awake while scoring.
+        </p>
+
+        <div className="gh-card">
+          <form onSubmit={submit}>
+            <label className="gh-label" htmlFor="gameId">
+              Game ID
+            </label>
+
+            <input
+              id="gameId"
+              className="gh-input"
+              value={gameId}
+              onChange={(e) => setGameId(e.target.value)}
+              placeholder="JPD2026"
+              autoCapitalize="characters"
+              autoCorrect="off"
+              inputMode="text"
+              disabled={busy}
+            />
+
+            <div className="gh-row">
+              <span>
+                Preview: <span className="kbd">{normalized || '—'}</span>
+              </span>
+              <span className="gh-pill">
+                <span className="dot" />
+                {busy ? 'Checking…' : 'Ready'}
+              </span>
+            </div>
+
+            {err && <div className="gh-error">{err}</div>}
+
+            <button className="gh-btn" disabled={busy}>
+              {busy ? 'Checking…' : 'Join'}
+            </button>
+          </form>
         </div>
 
-        <form className="join-form" onSubmit={submit}>
-          <input
-            className="join-input"
-            value={gameId}
-            onChange={(e) => setGameId(e.target.value)}
-            placeholder="JPD2026"
-            autoCapitalize="characters"
-            autoCorrect="off"
-            inputMode="text"
-            disabled={busy}
-          />
-
-          <div className="hint-row">
-            <span>Example: <b>JPD2026</b></span>
-            <span>{busy ? "Checking code…" : "Ready"}</span>
-          </div>
-
-          {err && <div className="error-banner">{err}</div>}
-
-          <button className="join-btn" disabled={busy}>
-            {busy ? "CHECKING…" : "JOIN THE GAME"}
-          </button>
-        </form>
-
-        <div className="footer-note">
-          If you get kicked out, just reopen the link and enter the code again.
+        <div className="gh-foot">
+          If you get kicked out, reopen the link and enter the code again.
+          <br />
+          Press <span className="kbd">Join</span> after typing the code.
         </div>
       </div>
     </div>
-  );
+  )
 }
