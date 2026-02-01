@@ -1,10 +1,10 @@
 // server/src/index.js
-import "dotenv/config";
+import 'dotenv/config'
 
-import express from "express";
-import cors from "cors";
-import http from "http";
-import { Server as SocketIOServer } from "socket.io";
+import express from 'express'
+import cors from 'cors'
+import http from 'http'
+import { Server as SocketIOServer } from 'socket.io'
 
 import {
   store,
@@ -35,292 +35,302 @@ import {
 
   // auto-assign
   autoAssignBySeatOrder,
-} from "./store.js";
+} from './store.js'
 
-const app = express();
-app.use(cors());
-app.use(express.json());
+const app = express()
+app.use(cors())
+app.use(express.json())
 
-const GAME_ID = process.env.GAME_ID || "JPD2026";
+const GAME_ID = process.env.GAME_ID || 'JPD2026'
+
+console.log('SERVER GAME_ID =', GAME_ID)
 
 // ---------------- Game ID gate (REST) ----------------
 function requireGameId(req, res, next) {
   // allow health check without code
-  if (req.path === "/api/health") return next();
+  if (req.path === '/api/health') return next()
 
-  const clientGameId = req.headers["x-game-id"];
+  const clientGameId = req.headers['x-game-id']
   if (!clientGameId || clientGameId !== GAME_ID) {
-    return res.status(401).json({ ok: false, error: "INVALID_GAME_ID" });
+    return res.status(401).json({ ok: false, error: 'INVALID_GAME_ID' })
   }
-  next();
+  next()
 }
-app.use(requireGameId);
+app.get('/api/debug/gameid', (req, res) => {
+  res.json({
+    header: req.headers['x-game-id'] || null,
+    serverGameId: GAME_ID,
+    match: (req.headers['x-game-id'] || '') === GAME_ID,
+  })
+})
+
+app.use(requireGameId)
 
 // ---------------- Server + Socket ----------------
-const server = http.createServer(app);
-const io = new SocketIOServer(server, { cors: { origin: "*" } });
+const server = http.createServer(app)
+const io = new SocketIOServer(server, { cors: { origin: '*' } })
 
 function broadcast() {
-  io.emit("game:update", store.game);
+  io.emit('game:update', store.game)
 }
 
 // Game ID gate (Socket)
 io.use((socket, next) => {
-  const gameId = socket.handshake.auth?.gameId;
-  if (!gameId || gameId !== GAME_ID) return next(new Error("INVALID_GAME_ID"));
-  next();
-});
+  const gameId = socket.handshake.auth?.gameId
+  if (!gameId || gameId !== GAME_ID) return next(new Error('INVALID_GAME_ID'))
+  next()
+})
 
-io.on("connection", (socket) => {
-  socket.emit("game:update", store.game);
-});
+io.on('connection', (socket) => {
+  socket.emit('game:update', store.game)
+})
 
 // ---------------- Health ----------------
-app.get("/api/health", (req, res) => res.json({ ok: true }));
+app.get('/api/health', (req, res) => res.json({ ok: true }))
 
 // ---------------- Game ----------------
-app.get("/api/game", (req, res) => res.json({ ok: true, game: store.game }));
+app.get('/api/game', (req, res) => res.json({ ok: true, game: store.game }))
 
-app.post("/api/game/reset", (req, res) => {
-  resetGame();
-  broadcast();
-  res.json({ ok: true, game: store.game });
-});
+app.post('/api/game/reset', (req, res) => {
+  resetGame()
+  broadcast()
+  res.json({ ok: true, game: store.game })
+})
 
-app.post("/api/undo", (req, res) => {
-  const ok = undo();
-  if (ok) broadcast();
-  res.json({ ok, game: store.game });
-});
+app.post('/api/undo', (req, res) => {
+  const ok = undo()
+  if (ok) broadcast()
+  res.json({ ok, game: store.game })
+})
 
 // ---------------- Teams ----------------
-app.post("/api/teams/replace", (req, res) => {
-  const { teams } = req.body;
+app.post('/api/teams/replace', (req, res) => {
+  const { teams } = req.body
   if (!Array.isArray(teams) || teams.length < 1) {
-    return res.status(400).json({ ok: false, error: "teams[] required" });
+    return res.status(400).json({ ok: false, error: 'teams[] required' })
   }
 
-  snapshot();
+  snapshot()
   try {
-    replaceTeams(teams);
-    broadcast();
-    res.json({ ok: true, game: store.game });
+    replaceTeams(teams)
+    broadcast()
+    res.json({ ok: true, game: store.game })
   } catch (e) {
-    res.status(400).json({ ok: false, error: e.message });
+    res.status(400).json({ ok: false, error: e.message })
   }
-});
+})
 
-app.post("/api/teams/add", (req, res) => {
-  const { teams } = req.body;
+app.post('/api/teams/add', (req, res) => {
+  const { teams } = req.body
   if (!Array.isArray(teams) || teams.length < 1) {
-    return res.status(400).json({ ok: false, error: "teams[] required" });
+    return res.status(400).json({ ok: false, error: 'teams[] required' })
   }
 
-  snapshot();
+  snapshot()
   try {
-    addTeams(teams);
-    broadcast();
-    res.json({ ok: true, game: store.game });
+    addTeams(teams)
+    broadcast()
+    res.json({ ok: true, game: store.game })
   } catch (e) {
-    res.status(400).json({ ok: false, error: e.message });
+    res.status(400).json({ ok: false, error: e.message })
   }
-});
+})
 
 // Import teams from CSV text (1st column = name)
-app.post("/api/teams/import-csv", (req, res) => {
-  const { csvText, mode } = req.body; // mode: "replace" | "add" (default add)
-  if (typeof csvText !== "string" || !csvText.trim()) {
+app.post('/api/teams/import-csv', (req, res) => {
+  const { csvText, mode } = req.body // mode: "replace" | "add" (default add)
+  if (typeof csvText !== 'string' || !csvText.trim()) {
     return res
       .status(400)
-      .json({ ok: false, error: "csvText (string) required" });
+      .json({ ok: false, error: 'csvText (string) required' })
   }
 
   const lines = csvText
     .split(/\r?\n/)
     .map((l) => l.trim())
-    .filter(Boolean);
+    .filter(Boolean)
 
-  const names = lines
-    .map((line) => line.split(",")[0]?.trim())
-    .filter(Boolean);
+  const names = lines.map((line) => line.split(',')[0]?.trim()).filter(Boolean)
 
   if (names.length === 0) {
     return res
       .status(400)
-      .json({ ok: false, error: "No team names found in csvText." });
+      .json({ ok: false, error: 'No team names found in csvText.' })
   }
 
-  snapshot();
+  snapshot()
   try {
-    if (mode === "replace") replaceTeams(names);
-    else addTeams(names);
+    if (mode === 'replace') replaceTeams(names)
+    else addTeams(names)
 
-    broadcast();
-    res.json({ ok: true, game: store.game, imported: names.length });
+    broadcast()
+    res.json({ ok: true, game: store.game, imported: names.length })
   } catch (e) {
-    res.status(400).json({ ok: false, error: e.message });
+    res.status(400).json({ ok: false, error: e.message })
   }
-});
+})
 
 // ---------------- Controller / State ----------------
-app.post("/api/state", (req, res) => {
-  snapshot();
+app.post('/api/state', (req, res) => {
+  snapshot()
   try {
-    updateGameState(req.body || {});
-    broadcast();
-    res.json({ ok: true, game: store.game });
+    updateGameState(req.body || {})
+    broadcast()
+    res.json({ ok: true, game: store.game })
   } catch (e) {
-    res.status(400).json({ ok: false, error: e.message });
+    res.status(400).json({ ok: false, error: e.message })
   }
-});
+})
 
 // ---------------- Proctors / Assignments ----------------
-app.post("/api/proctors/auto-assign", (req, res) => {
-  snapshot();
+app.post('/api/proctors/auto-assign', (req, res) => {
+  snapshot()
   try {
-    autoAssignBySeatOrder();
-    broadcast();
-    res.json({ ok: true, game: store.game });
+    autoAssignBySeatOrder()
+    broadcast()
+    res.json({ ok: true, game: store.game })
   } catch (e) {
-    res.status(400).json({ ok: false, error: e.message });
+    res.status(400).json({ ok: false, error: e.message })
   }
-});
+})
 
-app.post("/api/proctors/assign", (req, res) => {
-  const { proctorId, teamIds } = req.body;
+app.post('/api/proctors/assign', (req, res) => {
+  const { proctorId, teamIds } = req.body
   if (!proctorId || !Array.isArray(teamIds)) {
     return res
       .status(400)
-      .json({ ok: false, error: "proctorId + teamIds[] required" });
+      .json({ ok: false, error: 'proctorId + teamIds[] required' })
   }
 
-  snapshot();
+  snapshot()
   try {
-    assignTeamsToProctor(proctorId, teamIds);
-    broadcast();
-    res.json({ ok: true, game: store.game });
+    assignTeamsToProctor(proctorId, teamIds)
+    broadcast()
+    res.json({ ok: true, game: store.game })
   } catch (e) {
-    res.status(400).json({ ok: false, error: e.message });
+    res.status(400).json({ ok: false, error: e.message })
   }
-});
+})
 
 // ---------------- Scoring ----------------
-app.post("/api/score", (req, res) => {
-  const { proctorId, teamId, result } = req.body;
+app.post('/api/score', (req, res) => {
+  const { proctorId, teamId, result } = req.body
   if (!proctorId || !teamId || !result) {
     return res
       .status(400)
-      .json({ ok: false, error: "proctorId + teamId + result required" });
+      .json({ ok: false, error: 'proctorId + teamId + result required' })
   }
 
-  snapshot();
+  snapshot()
   try {
-    scoreByProctor({ proctorId, teamId, result });
-    broadcast();
-    res.json({ ok: true, game: store.game });
+    scoreByProctor({ proctorId, teamId, result })
+    broadcast()
+    res.json({ ok: true, game: store.game })
   } catch (e) {
-    res.status(403).json({ ok: false, error: e.message });
+    res.status(403).json({ ok: false, error: e.message })
   }
-});
+})
 
 // ---------------- Bets (DIFFICULT) ----------------
-app.post("/api/bets/set", (req, res) => {
-  const { proctorId, teamId } = req.body;
-  const bet = Number(req.body.bet);
+app.post('/api/bets/set', (req, res) => {
+  const { proctorId, teamId } = req.body
+  const bet = Number(req.body.bet)
 
   if (!proctorId || !teamId || !Number.isFinite(bet)) {
     return res.status(400).json({
       ok: false,
-      error: "proctorId + teamId + bet(number) required",
-    });
+      error: 'proctorId + teamId + bet(number) required',
+    })
   }
 
-  snapshot();
+  snapshot()
   try {
-    setBetByProctor({ proctorId, teamId, bet });
-    broadcast();
-    res.json({ ok: true, game: store.game });
+    setBetByProctor({ proctorId, teamId, bet })
+    broadcast()
+    res.json({ ok: true, game: store.game })
   } catch (e) {
-    res.status(403).json({ ok: false, error: e.message });
+    res.status(403).json({ ok: false, error: e.message })
   }
-});
+})
 
 // ---------------- Tie-breaker ----------------
-app.post("/api/tiebreaker/new-clue", (req, res) => {
-  snapshot();
+app.post('/api/tiebreaker/new-clue', (req, res) => {
+  snapshot()
   try {
-    startTieBreakerClue();
-    broadcast();
-    res.json({ ok: true, game: store.game });
+    startTieBreakerClue()
+    broadcast()
+    res.json({ ok: true, game: store.game })
   } catch (e) {
-    res.status(400).json({ ok: false, error: e.message });
+    res.status(400).json({ ok: false, error: e.message })
   }
-});
+})
 
-app.post("/api/tiebreaker/open", (req, res) => {
-  const { scoringOpen } = req.body;
-  if (typeof scoringOpen !== "boolean") {
+app.post('/api/tiebreaker/open', (req, res) => {
+  const { scoringOpen } = req.body
+  if (typeof scoringOpen !== 'boolean') {
     return res
       .status(400)
-      .json({ ok: false, error: "scoringOpen(boolean) required" });
+      .json({ ok: false, error: 'scoringOpen(boolean) required' })
   }
 
-  snapshot();
+  snapshot()
   try {
-    openTieBreakerScoring(scoringOpen);
-    broadcast();
-    res.json({ ok: true, game: store.game });
+    openTieBreakerScoring(scoringOpen)
+    broadcast()
+    res.json({ ok: true, game: store.game })
   } catch (e) {
-    res.status(400).json({ ok: false, error: e.message });
+    res.status(400).json({ ok: false, error: e.message })
   }
-});
+})
 
-app.post("/api/tiebreaker/correct", (req, res) => {
-  const { proctorId, teamId } = req.body;
+app.post('/api/tiebreaker/correct', (req, res) => {
+  const { proctorId, teamId } = req.body
   if (!proctorId || !teamId) {
     return res
       .status(400)
-      .json({ ok: false, error: "proctorId + teamId required" });
+      .json({ ok: false, error: 'proctorId + teamId required' })
   }
 
-  snapshot();
+  snapshot()
   try {
-    submitTieBreakerCorrect({ proctorId, teamId });
-    finalizeTieBreakerIfReady();
-    broadcast();
-    res.json({ ok: true, game: store.game });
+    submitTieBreakerCorrect({ proctorId, teamId })
+    finalizeTieBreakerIfReady()
+    broadcast()
+    res.json({ ok: true, game: store.game })
   } catch (e) {
-    res.status(403).json({ ok: false, error: e.message });
+    res.status(403).json({ ok: false, error: e.message })
   }
-});
+})
 
-app.post("/api/tiebreaker/finalize", (req, res) => {
-  snapshot();
+app.post('/api/tiebreaker/finalize', (req, res) => {
+  snapshot()
   try {
-    finalizeTieBreakerIfReady();
-    broadcast();
-    res.json({ ok: true, game: store.game });
+    finalizeTieBreakerIfReady()
+    broadcast()
+    res.json({ ok: true, game: store.game })
   } catch (e) {
-    res.status(400).json({ ok: false, error: e.message });
+    res.status(400).json({ ok: false, error: e.message })
   }
-});
+})
 
-app.post("/api/tiebreaker/resolve", (req, res) => {
-  const { teamId } = req.body;
+app.post('/api/tiebreaker/resolve', (req, res) => {
+  const { teamId } = req.body
   if (!teamId) {
-    return res.status(400).json({ ok: false, error: "teamId required" });
+    return res.status(400).json({ ok: false, error: 'teamId required' })
   }
 
-  snapshot();
+  snapshot()
   try {
-    resolveTieBreakerWinner(teamId);
-    broadcast();
-    res.json({ ok: true, game: store.game });
+    resolveTieBreakerWinner(teamId)
+    broadcast()
+    res.json({ ok: true, game: store.game })
   } catch (e) {
-    res.status(400).json({ ok: false, error: e.message });
+    res.status(400).json({ ok: false, error: e.message })
   }
-});
+})
 
 // ---------------- Start ----------------
-const PORT = process.env.PORT || 4000;
-server.listen(PORT, () => console.log(`API on http://localhost:${PORT}`));
+const PORT = process.env.PORT || 4000
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`API running on http://192.168.1.18:${PORT}`)
+})

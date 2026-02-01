@@ -25,3 +25,113 @@ a { text-decoration: none; color: inherit; }
 
 .table { width: 100%; border-collapse: collapse; }
 .table th, .table td { text-align: left; padding: 8px 6px; border-bottom: 1px solid #eee; }
+
+/* ---------------- App Layout Fix (sidebar + main) ---------------- */
+
+html, body {
+    height: 100%;
+  }
+  
+  body {
+    margin: 0;
+    background: #050714; /* stop the white background */
+  }
+  
+  /* Shell holds sidebar + main */
+  .shell {
+    min-height: 100vh;
+    display: flex;
+    background:
+      radial-gradient(1200px 600px at 20% 15%, rgba(99,102,241,.25), transparent 55%),
+      radial-gradient(900px 500px at 80% 25%, rgba(236,72,153,.18), transparent 60%),
+      linear-gradient(180deg, #050714, #070a1f 45%, #040514);
+  }
+  
+  /* Sidebar is normal flow on desktop (NOT fixed) */
+  .sidebar {
+    flex: 0 0 260px;
+    height: 100vh;
+    position: sticky;
+    top: 0;
+    overflow-y: auto;
+    z-index: 20;
+  }
+  
+  /* Main takes the rest; prevents overlap */
+  .main {
+    flex: 1;
+    min-width: 0;
+    padding: 16px;
+    overflow-x: hidden;
+  }
+  
+  /* Optional: make content panels look nicer on large screens */
+  .main > * {
+    max-width: 1200px;
+  }
+  
+  /* ---------------- Mobile behavior: sidebar becomes drawer ---------------- */
+  
+  @media (max-width: 900px) {
+    .shell {
+      display: block;
+    }
+  
+    /* sidebar slides in, main is full width */
+    .sidebar {
+      position: fixed;
+      left: 0;
+      top: 0;
+      height: 100vh;
+      transform: translateX(-100%);
+      transition: transform .2s ease;
+      z-index: 40;
+    }
+  
+    .sidebar.open {
+      transform: translateX(0);
+    }
+  
+    .main {
+      padding: 14px;
+      width: 100%;
+      max-width: none;
+    }
+  
+    .main > * {
+      max-width: none;
+    }
+  }
+  
+  /* --- Fix: inputs overlapping inside .field panels --- */
+
+/* make .field a proper container */
+.field {
+    padding: 12px !important;
+    overflow: hidden;          /* stops visual spill */
+  }
+  
+  /* input/select should not add their own spacing that breaks the box */
+  .field .input,
+  .field input,
+  .field select {
+    display: block;
+    width: 100%;
+    margin: 0 !important;
+    box-sizing: border-box;
+    height: 48px;              /* consistent height */
+    border-radius: 12px;
+  }
+  
+  /* if your global .input has line-height weirdness */
+  .field input,
+  .field select {
+    line-height: normal;
+  }
+  
+  /* if your global .input has position or transform (rare but possible) */
+  .field .input {
+    position: static !important;
+    transform: none !important;
+  }
+  

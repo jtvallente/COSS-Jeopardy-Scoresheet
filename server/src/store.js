@@ -106,28 +106,85 @@ function getProctor(proctorId) {
 }
 
 function recomputeDerived() {
-  // Leaderboard: descending by score
-  store.game.leaderboard = [...store.game.teams]
-    .sort((a, b) => b.score - a.score)
-    .map((t) => ({
+    // ---------- LEADERBOARD ----------
+    const sorted = [...store.game.teams].sort((a, b) => b.score - a.score);
+  
+    store.game.leaderboard = sorted.map((t) => ({
       id: t.id,
       name: t.name,
       score: t.score,
       eliminated: t.eliminated,
-    }))
-
-  // Clincher detection: tie for highest score
-  const activeTeams = store.game.teams.filter((t) => !t.eliminated)
-  if (activeTeams.length === 0) {
-    store.game.clincher = { needed: false, tiedTeamIds: [] }
-    return
+    }));
+  
+    // ---------- CLINCHER LOGIC ----------
+    // Goal:
+    // Ensure Top 1, Top 2, Top 3 are DISTINCT.
+    // Priority:
+    // 1) Tie for Rank 1
+    // 2) Else tie for Rank 2
+    // 3) Else tie for Rank 3
+    // Ignore all other ranks completely.
+  
+    const active = sorted.filter((t) => !t.eliminated);
+  
+    // Not enough teams to have a tie
+    if (active.length < 2) {
+      store.game.clincher = { needed: false, tiedTeamIds: [] };
+      return;
+    }
+  
+    // Helper: returns all teamIds tied at the given rank (1-based)
+    function tieGroupAtRank(rank) {
+      const idx = rank - 1;
+      if (!active[idx]) return [];
+      const score = active[idx].score;
+      return active
+        .filter((t) => t.score === score)
+        .map((t) => t.id);
+    }
+  
+    // ---- Rank 1 tie ----
+    const rank1 = tieGroupAtRank(1);
+    if (rank1.length > 1) {
+      store.game.clincher = {
+        needed: true,
+        tiedTeamIds: rank1,
+      };
+      return;
+    }
+  
+    // ---- Rank 2 tie ----
+    if (active.length >= 2) {
+      const rank2 = tieGroupAtRank(2);
+      if (rank2.length > 1) {
+        store.game.clincher = {
+          needed: true,
+          tiedTeamIds: rank2,
+        };
+        return;
+      }
+    }
+  
+    // ---- Rank 3 tie ----
+    if (active.length >= 3) {
+      const rank3 = tieGroupAtRank(3);
+      if (rank3.length > 1) {
+        store.game.clincher = {
+          needed: true,
+          tiedTeamIds: rank3,
+        };
+        return;
+      }
+    }
+  
+    // ---- No clincher needed ----
+    store.game.clincher = {
+      needed: false,
+      tiedTeamIds: [],
+    };
   }
-  let max = activeTeams[0].score
-  for (const t of activeTeams) if (t.score > max) max = t.score
-
-  const tied = activeTeams.filter((t) => t.score === max).map((t) => t.id)
-  store.game.clincher = { needed: tied.length > 1, tiedTeamIds: tied }
-}
+  
+  
 
 function setPhase(phase) {
   const preset = ROUND_PRESETS[phase]
