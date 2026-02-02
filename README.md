@@ -1,7 +1,7 @@
 # COSS Jeopardy Scoresheet
 ## Complete Setup & Operation Manual
 **Local Network / LAN / Hotspot Version**
-
+**Open this live docs for documentation updates: `https://docs.google.com/document/d/1yzGsKRjp4KJw_7qkPDyftL8AM1Sqh0lP-XenbhfnduU/edit?usp=sharing`**
 ---
 
 ## 1. What This System Is

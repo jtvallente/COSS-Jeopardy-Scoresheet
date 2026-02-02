@@ -355,7 +355,7 @@ export default function Join() {
               className="gh-input"
               value={gameId}
               onChange={(e) => setGameId(e.target.value)}
-              placeholder="JPD2026"
+              placeholder="ABC1234"
               autoCapitalize="characters"
               autoCorrect="off"
               inputMode="text"
