@@ -90,107 +90,107 @@ const ICurrencyDollar = () => (
 /* ---------------- Data ---------------- */
 
 const PHASES = [
-  { key: 'EASY', label: 'Easy' },
-  { key: 'AVERAGE', label: 'Average' },
-  { key: 'DIFFICULT', label: 'Difficult' },
-  { key: 'JACKPOT', label: 'Jackpot' },
-  { key: 'TIE_BREAKER', label: 'Tie-breaker' },
-]
-
-const ROUND_LABELS = ['VIDEO GAMES', 'MUSIC', 'TECH', 'ANIME', 'MEMES']
-
-export default function Controller() {
-  const { game } = useGame()
-  const s = game.state
-  const tb = game.tieBreaker
-
-  const [confirmReset, setConfirmReset] = useState(false)
-  const [clueDraft, setClueDraft] = useState(() => String(s.clueNumber ?? 1))
-
-  const clueIsDirty = clueDraft !== String(s.clueNumber ?? 1)
-
-  const clincherTeams = useMemo(() => {
-    return (game.clincher.tiedTeamIds || [])
-      .map((id) => game.teams.find((t) => t.id === id))
-      .filter(Boolean)
-  }, [game])
-
-  const allowedValues = useMemo(() => {
-    if (s.phase === 'EASY') return [10, 20, 30, 40]
-    if (s.phase === 'AVERAGE') return [20, 40, 60, 80]
-    return []
-  }, [s.phase])
-
-  // ✅ Clue value required ONLY for EASY/AVERAGE (your “value buttons” rounds)
-  const clueValueRequired = s.phase === 'EASY' || s.phase === 'AVERAGE'
-  const clueValueIsSet =
-    !clueValueRequired ||
-    (Number.isFinite(Number(s.clueValue)) && Number(s.clueValue) > 0)
-
-  // ✅ rule 1: scoring must not be opened if clue value not yet set
-  const scoringToggleDisabledReason =
-    clueValueRequired && !clueValueIsSet ? 'Set a clue value first' : null
-
-  function commitClueDraft() {
-    const trimmed = clueDraft.trim()
-    if (!trimmed) {
-      setClueDraft(String(s.clueNumber ?? 1))
-      return
+    { key: 'EASY', label: 'Easy' },
+    { key: 'AVERAGE', label: 'Average' },
+    { key: 'DIFFICULT', label: 'Difficult' },
+    { key: 'JACKPOT', label: 'Jackpot' },
+    { key: 'TIE_BREAKER', label: 'Tie-breaker' },
+  ]
+  
+  const ROUND_LABELS = ['VIDEO GAMES', 'MUSIC', 'TECH', 'ANIME', 'MEMES']
+  
+  export default function Controller() {
+    const { game } = useGame()
+    const s = game.state
+    const tb = game.tieBreaker
+  
+    const [confirmReset, setConfirmReset] = useState(false)
+    const [clueDraft, setClueDraft] = useState(() => String(s.clueNumber ?? 1))
+  
+    const clueIsDirty = clueDraft !== String(s.clueNumber ?? 1)
+  
+    const clincherTeams = useMemo(() => {
+      return (game.clincher.tiedTeamIds || [])
+        .map((id) => game.teams.find((t) => t.id === id))
+        .filter(Boolean)
+    }, [game])
+  
+    const allowedValues = useMemo(() => {
+      if (s.phase === 'EASY') return [10, 20, 30, 40]
+      if (s.phase === 'AVERAGE') return [20, 40, 60, 80]
+      return []
+    }, [s.phase])
+  
+    const clueValueRequired = s.phase === 'EASY' || s.phase === 'AVERAGE'
+    const clueValueIsSet =
+      !clueValueRequired ||
+      (Number.isFinite(Number(s.clueValue)) && Number(s.clueValue) > 0)
+  
+    const scoringToggleDisabledReason =
+      clueValueRequired && !clueValueIsSet ? 'Set a clue value first' : null
+  
+    function commitClueDraft() {
+      const trimmed = clueDraft.trim()
+      if (!trimmed) {
+        setClueDraft(String(s.clueNumber ?? 1))
+        return
+      }
+  
+      const n = Number(trimmed)
+      if (!Number.isFinite(n) || n < 1) {
+        setClueDraft(String(s.clueNumber ?? 1))
+        return
+      }
+  
+      updateState({ clueNumber: n, scoringOpen: false })
     }
-
-    const n = Number(trimmed)
-    if (!Number.isFinite(n) || n < 1) {
-      setClueDraft(String(s.clueNumber ?? 1))
-      return
+  
+    async function doReset() {
+      if (!confirmReset) {
+        setConfirmReset(true)
+        setTimeout(() => setConfirmReset(false), 2500)
+        return
+      }
+      await resetGame()
+      setConfirmReset(false)
     }
-
-    // ✅ rule 2: every clue number change -> scoring must reset to close
-    updateState({ clueNumber: n, scoringOpen: false })
-  }
-
-  async function doReset() {
-    if (!confirmReset) {
-      setConfirmReset(true)
-      setTimeout(() => setConfirmReset(false), 2500)
-      return
+  
+    const scoringOn = !!s.scoringOpen
+    const betsOn = !!s.betsOpen
+  
+    const clincherNeeded = !!game.clincher?.needed
+    const isTieBreakerPhase = s.phase === 'TIE_BREAKER'
+    const tieBreakActive = clincherNeeded || isTieBreakerPhase
+  
+    const submissionsCount = (tb?.submissions || []).length
+    const canFinalize = isTieBreakerPhase && submissionsCount > 0
+    const canResolve = !!tb?.conflict && submissionsCount > 0
+  
+    // ---- NEW: progress metrics (server provides these) ----
+    const scoringEligible = (game.scoringTracker?.eligibleTeamIds || []).length
+    const scoringReceived = (game.scoringTracker?.receivedTeamIds || []).length
+  
+    const betEligible = (game.betTracker?.eligibleTeamIds || []).length
+    const betSubmitted = (game.betTracker?.submittedTeamIds || []).length
+  
+    async function startTieBreaker() {
+      await updateState({
+        phase: 'TIE_BREAKER',
+        roundLabel: 'TIE BREAKER',
+        scoringOpen: true,
+        betsOpen: false,
+      })
+      await tbNewClue()
     }
-    await resetGame()
-    setConfirmReset(false)
-  }
-
-  const scoringOn = !!s.scoringOpen
-  const betsOn = !!s.betsOpen
-
-  const clincherNeeded = !!game.clincher?.needed
-  const isTieBreakerPhase = s.phase === 'TIE_BREAKER'
-  const tieBreakActive = clincherNeeded || isTieBreakerPhase
-
-  const submissionsCount = (tb?.submissions || []).length
-  const canFinalize = isTieBreakerPhase && submissionsCount > 0
-  const canResolve = !!tb?.conflict && submissionsCount > 0
-
-  // ✅ One-button start: TB does not depend on clue value, so it can open scoring
-  async function startTieBreaker() {
-    await updateState({
-      phase: 'TIE_BREAKER',
-      roundLabel: 'TIE BREAKER',
-      scoringOpen: true,
-      betsOpen: false,
-    })
-    await tbNewClue()
-  }
-
-  async function setClueValue(v) {
-    // Nice “setup” behavior: choosing a value closes scoring
-    // so you don’t accidentally score a clue while still preparing.
-    await updateState({ clueValue: v, scoringOpen: false })
-  }
-
-  async function toggleScoring() {
-    // Guard in code too (not just disabled UI)
-    if (clueValueRequired && !clueValueIsSet) return
-    await updateState({ scoringOpen: !s.scoringOpen })
-  }
+  
+    async function setClueValue(v) {
+      await updateState({ clueValue: v, scoringOpen: false })
+    }
+  
+    async function toggleScoring() {
+      if (clueValueRequired && !clueValueIsSet) return
+      await updateState({ scoringOpen: !s.scoringOpen })
+    }
 
   return (
     <div className="gh-page">
@@ -349,35 +349,12 @@ export default function Controller() {
         }
       `}</style>
 
-      <div className="gh-wrap">
+<div className="gh-wrap">
         <div className="gh-header">
           <div>
             <div className="gh-title">CONTROLLER • GAME MASTER</div>
-            <div className="gh-sub">
-              Control panel. Updates live to proctors.
-            </div>
+            <div className="gh-sub">Control panel. Updates live to proctors.</div>
           </div>
-
-          {/* <div className="gh-meta">
-            <span className="gh-chip">
-              <Icon>
-                <IFlag />
-              </Icon>{' '}
-              Phase: <b>{s.phase}</b>
-            </span>
-            <span className="gh-chip">
-              <Icon>
-                <IHash />
-              </Icon>{' '}
-              Clue: <b>{s.clueNumber}</b>
-            </span>
-            <span className="gh-chip">
-              <Icon>
-                <IClock />
-              </Icon>{' '}
-              Timer: <b>{s.seconds}s</b>
-            </span>
-          </div> */}
         </div>
 
         <div className="gh-grid">
@@ -386,16 +363,11 @@ export default function Controller() {
             <div className="gh-overview">
               <div className="gh-overviewTop">
                 <div className="gh-overviewTitle">
-                  <Icon>
-                    <IFlag />
-                  </Icon>{' '}
-                  Round Overview
+                  <Icon><IFlag /></Icon> Round Overview
                 </div>
 
                 <div className="gh-pillRow">
-                  <span
-                    className={'gh-pill ' + (s.scoringOpen ? 'good' : 'bad')}
-                  >
+                  <span className={'gh-pill ' + (s.scoringOpen ? 'good' : 'bad')}>
                     <span className={'dot ' + (s.scoringOpen ? 'on' : 'off')} />
                     Scoring {s.scoringOpen ? 'Open' : 'Closed'}
                   </span>
@@ -409,9 +381,7 @@ export default function Controller() {
 
               <div className="gh-overviewGrid">
                 <div className="gh-stat">
-                  <Icon>
-                    <IFlag />
-                  </Icon>
+                  <Icon><IFlag /></Icon>
                   <div style={{ minWidth: 0 }}>
                     <div className="gh-statLabel">Phase</div>
                     <div className="gh-statValue">{s.phase}</div>
@@ -419,9 +389,7 @@ export default function Controller() {
                 </div>
 
                 <div className="gh-stat">
-                  <Icon>
-                    <ITag />
-                  </Icon>
+                  <Icon><ITag /></Icon>
                   <div style={{ minWidth: 0 }}>
                     <div className="gh-statLabel">Category</div>
                     <div className="gh-statValue">{s.roundLabel}</div>
@@ -429,9 +397,7 @@ export default function Controller() {
                 </div>
 
                 <div className="gh-stat">
-                  <Icon>
-                    <IHash />
-                  </Icon>
+                  <Icon><IHash /></Icon>
                   <div style={{ minWidth: 0 }}>
                     <div className="gh-statLabel">Clue #</div>
                     <div className="gh-statValue">{s.clueNumber}</div>
@@ -439,26 +405,43 @@ export default function Controller() {
                 </div>
 
                 <div className="gh-stat">
-                  <Icon>
-                    <IClock />
-                  </Icon>
+                  <Icon><IClock /></Icon>
                   <div style={{ minWidth: 0 }}>
                     <div className="gh-statLabel">Seconds</div>
                     <div className="gh-statValue">{s.seconds}s</div>
                   </div>
                 </div>
-                {/* --- Full-width bottom row (---) */}
+
                 <div className="gh-stat gh-span2">
-                  <Icon>
-                    <ICurrencyDollar />
-                  </Icon>
+                  <Icon><ICurrencyDollar /></Icon>
                   <div style={{ minWidth: 0 }}>
                     <div className="gh-statLabel">Clue Value</div>
                     <div className="gh-statValue">
-                      {(s.phase === 'EASY' || s.phase === 'AVERAGE') &&
-                      Number(s.clueValue) > 0
+                      {(s.phase === 'EASY' || s.phase === 'AVERAGE') && Number(s.clueValue) > 0
                         ? s.clueValue
                         : '—'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* NEW: Scoring progress */}
+                <div className="gh-stat">
+                  <Icon><ICheck /></Icon>
+                  <div style={{ minWidth: 0 }}>
+                    <div className="gh-statLabel">Scores Received</div>
+                    <div className="gh-statValue">
+                      {scoringReceived}/{scoringEligible}
+                    </div>
+                  </div>
+                </div>
+
+                {/* NEW: Bets progress */}
+                <div className="gh-stat">
+                  <Icon><ICurrencyDollar /></Icon>
+                  <div style={{ minWidth: 0 }}>
+                    <div className="gh-statLabel">Bets Submitted</div>
+                    <div className="gh-statValue">
+                      {s.phase === 'DIFFICULT' ? `${betSubmitted}/${betEligible}` : '—'}
                     </div>
                   </div>
                 </div>

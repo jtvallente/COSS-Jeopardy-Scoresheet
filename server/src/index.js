@@ -30,7 +30,7 @@ import {
   startTieBreakerClue,
   openTieBreakerScoring,
   submitTieBreakerCorrect,
-  finalizeTieBreakerIfReady,
+  finalizeTieBreaker,
   resolveTieBreakerWinner,
 
   // auto-assign
@@ -42,12 +42,10 @@ app.use(cors())
 app.use(express.json())
 
 const GAME_ID = process.env.GAME_ID || 'JPD2026'
-
 console.log('SERVER GAME_ID =', GAME_ID)
 
 // ---------------- Game ID gate (REST) ----------------
 function requireGameId(req, res, next) {
-  // allow health check without code
   if (req.path === '/api/health') return next()
 
   const clientGameId = req.headers['x-game-id']
@@ -56,6 +54,7 @@ function requireGameId(req, res, next) {
   }
   next()
 }
+
 app.get('/api/debug/gameid', (req, res) => {
   res.json({
     header: req.headers['x-game-id'] || null,
@@ -138,11 +137,9 @@ app.post('/api/teams/add', (req, res) => {
 
 // Import teams from CSV text (1st column = name)
 app.post('/api/teams/import-csv', (req, res) => {
-  const { csvText, mode } = req.body // mode: "replace" | "add" (default add)
+  const { csvText, mode } = req.body
   if (typeof csvText !== 'string' || !csvText.trim()) {
-    return res
-      .status(400)
-      .json({ ok: false, error: 'csvText (string) required' })
+    return res.status(400).json({ ok: false, error: 'csvText (string) required' })
   }
 
   const lines = csvText
@@ -153,9 +150,7 @@ app.post('/api/teams/import-csv', (req, res) => {
   const names = lines.map((line) => line.split(',')[0]?.trim()).filter(Boolean)
 
   if (names.length === 0) {
-    return res
-      .status(400)
-      .json({ ok: false, error: 'No team names found in csvText.' })
+    return res.status(400).json({ ok: false, error: 'No team names found in csvText.' })
   }
 
   snapshot()
@@ -197,9 +192,7 @@ app.post('/api/proctors/auto-assign', (req, res) => {
 app.post('/api/proctors/assign', (req, res) => {
   const { proctorId, teamIds } = req.body
   if (!proctorId || !Array.isArray(teamIds)) {
-    return res
-      .status(400)
-      .json({ ok: false, error: 'proctorId + teamIds[] required' })
+    return res.status(400).json({ ok: false, error: 'proctorId + teamIds[] required' })
   }
 
   snapshot()
@@ -216,9 +209,7 @@ app.post('/api/proctors/assign', (req, res) => {
 app.post('/api/score', (req, res) => {
   const { proctorId, teamId, result } = req.body
   if (!proctorId || !teamId || !result) {
-    return res
-      .status(400)
-      .json({ ok: false, error: 'proctorId + teamId + result required' })
+    return res.status(400).json({ ok: false, error: 'proctorId + teamId + result required' })
   }
 
   snapshot()
@@ -268,9 +259,7 @@ app.post('/api/tiebreaker/new-clue', (req, res) => {
 app.post('/api/tiebreaker/open', (req, res) => {
   const { scoringOpen } = req.body
   if (typeof scoringOpen !== 'boolean') {
-    return res
-      .status(400)
-      .json({ ok: false, error: 'scoringOpen(boolean) required' })
+    return res.status(400).json({ ok: false, error: 'scoringOpen(boolean) required' })
   }
 
   snapshot()
@@ -284,30 +273,31 @@ app.post('/api/tiebreaker/open', (req, res) => {
 })
 
 app.post('/api/tiebreaker/correct', (req, res) => {
-    try {
-      snapshot()
-      submitTieBreakerCorrect({
-        proctorId: req.body.proctorId,
-        teamId: req.body.teamId,
-      })
-      broadcast()
-      return res.json({ ok: true, game: store.game })
-    } catch (e) {
-      return res.status(400).json({ ok: false, error: e.message })
-    }
-  })
-  
-  app.post('/api/tiebreaker/finalize', (req, res) => {
-    try {
-      snapshot()
-      const result = finalizeTieBreakerIfReady()
-      broadcast()
-      return res.json({ ok: true, game: store.game, result })
-    } catch (e) {
-      return res.status(400).json({ ok: false, error: e.message })
-    }
-  })
-  
+  const { proctorId, teamId } = req.body
+  if (!proctorId || !teamId) {
+    return res.status(400).json({ ok: false, error: 'proctorId + teamId required' })
+  }
+
+  snapshot()
+  try {
+    submitTieBreakerCorrect({ proctorId, teamId })
+    broadcast()
+    res.json({ ok: true, game: store.game })
+  } catch (e) {
+    res.status(400).json({ ok: false, error: e.message })
+  }
+})
+
+app.post('/api/tiebreaker/finalize', (req, res) => {
+  snapshot()
+  try {
+    const result = finalizeTieBreaker()
+    broadcast()
+    res.json({ ok: true, game: store.game, result })
+  } catch (e) {
+    res.status(400).json({ ok: false, error: e.message })
+  }
+})
 
 app.post('/api/tiebreaker/resolve', (req, res) => {
   const { teamId } = req.body
@@ -328,5 +318,5 @@ app.post('/api/tiebreaker/resolve', (req, res) => {
 // ---------------- Start ----------------
 const PORT = process.env.PORT || 4000
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`API running on http://192.168.1.18:${PORT}`)
+  console.log(`API running on http://0.0.0.0:${PORT}`)
 })
