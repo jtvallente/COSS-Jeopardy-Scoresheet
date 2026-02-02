@@ -49,14 +49,17 @@ function makeInitialGame() {
     },
 
     tieBreaker: {
-      clueId: 1, // increments each tie-breaker clue
-      scoringOpen: false, // controlled by GM when in TIE_BREAKER
-      submissions: [], // { teamId, proctorId, ts }
+      clueId: 1,
+      scoringOpen: false,
+      submissions: [],
       winnerTeamId: null,
       conflict: false,
-      bufferEndsAt: null, // timestamp (ms) when buffer window ends
-    },
+      bufferEndsAt: null,
 
+      // freeze who is allowed to participate in TB
+      candidateTeamIds: [],
+      finalized: false,
+    },
     // Teams module
     teams: [], // { id, name, score, eliminated:boolean }
 
@@ -106,85 +109,81 @@ function getProctor(proctorId) {
 }
 
 function recomputeDerived() {
-    // ---------- LEADERBOARD ----------
-    const sorted = [...store.game.teams].sort((a, b) => b.score - a.score);
-  
-    store.game.leaderboard = sorted.map((t) => ({
-      id: t.id,
-      name: t.name,
-      score: t.score,
-      eliminated: t.eliminated,
-    }));
-  
-    // ---------- CLINCHER LOGIC ----------
-    // Goal:
-    // Ensure Top 1, Top 2, Top 3 are DISTINCT.
-    // Priority:
-    // 1) Tie for Rank 1
-    // 2) Else tie for Rank 2
-    // 3) Else tie for Rank 3
-    // Ignore all other ranks completely.
-  
-    const active = sorted.filter((t) => !t.eliminated);
-  
-    // Not enough teams to have a tie
-    if (active.length < 2) {
-      store.game.clincher = { needed: false, tiedTeamIds: [] };
-      return;
+  // ---------- LEADERBOARD ----------
+  const sorted = [...store.game.teams].sort((a, b) => b.score - a.score)
+
+  store.game.leaderboard = sorted.map((t) => ({
+    id: t.id,
+    name: t.name,
+    score: t.score,
+    eliminated: t.eliminated,
+  }))
+
+  // ---------- CLINCHER LOGIC ----------
+  // Goal:
+  // Ensure Top 1, Top 2, Top 3 are DISTINCT.
+  // Priority:
+  // 1) Tie for Rank 1
+  // 2) Else tie for Rank 2
+  // 3) Else tie for Rank 3
+  // Ignore all other ranks completely.
+
+  const active = sorted.filter((t) => !t.eliminated)
+
+  // Not enough teams to have a tie
+  if (active.length < 2) {
+    store.game.clincher = { needed: false, tiedTeamIds: [] }
+    return
+  }
+
+  // Helper: returns all teamIds tied at the given rank (1-based)
+  function tieGroupAtRank(rank) {
+    const idx = rank - 1
+    if (!active[idx]) return []
+    const score = active[idx].score
+    return active.filter((t) => t.score === score).map((t) => t.id)
+  }
+
+  // ---- Rank 1 tie ----
+  const rank1 = tieGroupAtRank(1)
+  if (rank1.length > 1) {
+    store.game.clincher = {
+      needed: true,
+      tiedTeamIds: rank1,
     }
-  
-    // Helper: returns all teamIds tied at the given rank (1-based)
-    function tieGroupAtRank(rank) {
-      const idx = rank - 1;
-      if (!active[idx]) return [];
-      const score = active[idx].score;
-      return active
-        .filter((t) => t.score === score)
-        .map((t) => t.id);
-    }
-  
-    // ---- Rank 1 tie ----
-    const rank1 = tieGroupAtRank(1);
-    if (rank1.length > 1) {
+    return
+  }
+
+  // ---- Rank 2 tie ----
+  if (active.length >= 2) {
+    const rank2 = tieGroupAtRank(2)
+    if (rank2.length > 1) {
       store.game.clincher = {
         needed: true,
-        tiedTeamIds: rank1,
-      };
-      return;
-    }
-  
-    // ---- Rank 2 tie ----
-    if (active.length >= 2) {
-      const rank2 = tieGroupAtRank(2);
-      if (rank2.length > 1) {
-        store.game.clincher = {
-          needed: true,
-          tiedTeamIds: rank2,
-        };
-        return;
+        tiedTeamIds: rank2,
       }
+      return
     }
-  
-    // ---- Rank 3 tie ----
-    if (active.length >= 3) {
-      const rank3 = tieGroupAtRank(3);
-      if (rank3.length > 1) {
-        store.game.clincher = {
-          needed: true,
-          tiedTeamIds: rank3,
-        };
-        return;
-      }
-    }
-  
-    // ---- No clincher needed ----
-    store.game.clincher = {
-      needed: false,
-      tiedTeamIds: [],
-    };
   }
-  
-  
+
+  // ---- Rank 3 tie ----
+  if (active.length >= 3) {
+    const rank3 = tieGroupAtRank(3)
+    if (rank3.length > 1) {
+      store.game.clincher = {
+        needed: true,
+        tiedTeamIds: rank3,
+      }
+      return
+    }
+  }
+
+  // ---- No clincher needed ----
+  store.game.clincher = {
+    needed: false,
+    tiedTeamIds: [],
+  }
+}
 
 function setPhase(phase) {
   const preset = ROUND_PRESETS[phase]
@@ -215,25 +214,22 @@ function setPhase(phase) {
 /* ---------------- Teams module ---------------- */
 
 export function replaceTeams(teamNames) {
-    const cleaned = teamNames
-      .map((s) => String(s ?? '').trim())
-      .filter(Boolean)
-  
-    if (cleaned.length > 40) throw new Error('Max 40 teams only.')
-  
-    store.game.teams = cleaned.map((name, i) => ({
-      id: `t${i + 1}`,
-      name,
-      score: 0,
-      eliminated: false,
-    }))
-  
-    // Clear assignments when replacing teams
-    store.game.proctors.forEach((p) => (p.teamIds = []))
-    store.game.bets = {}
-    recomputeDerived()
-  }
-  
+  const cleaned = teamNames.map((s) => String(s ?? '').trim()).filter(Boolean)
+
+  if (cleaned.length > 40) throw new Error('Max 40 teams only.')
+
+  store.game.teams = cleaned.map((name, i) => ({
+    id: `t${i + 1}`,
+    name,
+    score: 0,
+    eliminated: false,
+  }))
+
+  // Clear assignments when replacing teams
+  store.game.proctors.forEach((p) => (p.teamIds = []))
+  store.game.bets = {}
+  recomputeDerived()
+}
 
 export function addTeams(teamNames) {
   const start = store.game.teams.length
@@ -326,7 +322,6 @@ export function setBetByProctor({ proctorId, teamId, bet }) {
   const s = store.game.state
 
   if (s.phase !== PHASES.DIFFICULT)
-    
     throw new Error('Bets only allowed in DIFFICULT phase.')
   if (!s.betsOpen) throw new Error('Bets are closed.')
 
@@ -411,12 +406,19 @@ export function startTieBreakerClue() {
   if (store.game.state.phase !== PHASES.TIE_BREAKER) {
     throw new Error('Not in TIE_BREAKER phase.')
   }
-  store.game.tieBreaker.clueId += 1
-  store.game.tieBreaker.scoringOpen = true
-  store.game.tieBreaker.submissions = []
-  store.game.tieBreaker.winnerTeamId = null
-  store.game.tieBreaker.conflict = false
-  store.game.tieBreaker.bufferEndsAt = null
+
+  const tb = store.game.tieBreaker
+
+  // freeze candidates ONCE per TB clue
+  tb.candidateTeamIds = [...(store.game.clincher?.tiedTeamIds || [])]
+
+  tb.clueId += 1
+  tb.scoringOpen = true
+  tb.submissions = []
+  tb.winnerTeamId = null
+  tb.conflict = false
+  tb.bufferEndsAt = null
+  tb.finalized = false
 }
 
 export function openTieBreakerScoring(isOpen) {
@@ -432,84 +434,95 @@ export function submitTieBreakerCorrect({
   nowTs = Date.now(),
 }) {
   const s = store.game.state
+  const tb = store.game.tieBreaker
+
   if (s.phase !== PHASES.TIE_BREAKER) throw new Error('Not in TIE_BREAKER.')
-  if (!store.game.tieBreaker.scoringOpen)
-    throw new Error('Tie-breaker scoring is closed.')
+  if (!tb.scoringOpen) throw new Error('Tie-breaker scoring is closed.')
+  if (tb.finalized) throw new Error('Tie-breaker already finalized.')
 
   const p = getProctor(proctorId)
   if (!p) throw new Error('Invalid proctor.')
-  if (!p.teamIds.includes(teamId))
+  if (!p.teamIds.includes(teamId)) {
     throw new Error('Not allowed: team not assigned to this proctor.')
+  }
 
   const team = getTeam(teamId)
   if (!team) throw new Error('Invalid team.')
   if (team.eliminated) throw new Error('Team is eliminated.')
 
-  // Prevent duplicate submissions by same team for same clue
-  if (store.game.tieBreaker.submissions.some((x) => x.teamId === teamId)) {
-    return // ignore silently (or throw if you prefer)
+  // Only teams frozen as candidates can submit
+  if (!tb.candidateTeamIds.includes(teamId)) {
+    throw new Error('Team is not a tie-break candidate.')
   }
 
-  // Record submission
-  store.game.tieBreaker.submissions.push({
-    teamId,
-    proctorId,
-    ts: nowTs,
-  })
-
-  // If this is the first correct, start buffer window
-  if (!store.game.tieBreaker.bufferEndsAt) {
-    store.game.tieBreaker.bufferEndsAt = nowTs + TIE_BUFFER_MS
-  } else {
-    // If another correct arrives within buffer window, mark conflict
-    if (nowTs <= store.game.tieBreaker.bufferEndsAt) {
-      store.game.tieBreaker.conflict = true
-    }
+  // One submission per team (idempotent)
+  if (tb.submissions.some((x) => x.teamId === teamId)) {
+    return
   }
+  const candidates = tb.candidateTeamIds || []
+  if (candidates.length > 0 && !candidates.includes(teamId)) {
+    throw new Error('Team is not a tie-break candidate.')
+  }
+  
+
+  tb.submissions.push({ teamId, proctorId, ts: nowTs })
+
+  // Multiple corrects are allowed → conflict if more than 1 submission
+  tb.conflict = tb.submissions.length > 1
 }
 
-export function finalizeTieBreakerIfReady(nowTs = Date.now()) {
+export function finalizeTieBreaker() {
   const tb = store.game.tieBreaker
 
-  if (store.game.state.phase !== PHASES.TIE_BREAKER) return false
-  if (!tb.bufferEndsAt) return false // no submissions yet
-  if (tb.winnerTeamId) return false // already decided
-  if (nowTs < tb.bufferEndsAt) return false // buffer not finished yet
+  if (store.game.state.phase !== PHASES.TIE_BREAKER) {
+    throw new Error('Not in TIE_BREAKER phase.')
+  }
+  if (!tb.scoringOpen) {
+    throw new Error('Tie-breaker scoring is closed.')
+  }
+  if (tb.finalized) return
 
-  // Buffer finished: decide or require GM
-  tb.scoringOpen = false
-
-  if (!tb.submissions.length) return false
-
-  if (tb.conflict) {
-    // Let GM resolve
-    return true // "ready to resolve"
+  if (!tb.submissions.length) {
+    throw new Error('No submissions yet.')
   }
 
-  // No conflict: earliest submission wins
-  const winner = [...tb.submissions].sort((a, b) => a.ts - b.ts)[0]
-  tb.winnerTeamId = winner.teamId
+  tb.scoringOpen = false
+  tb.finalized = true
 
-  // Score +1 (your rule)
-  const team = getTeam(winner.teamId)
-  if (team) team.score += 1
+  if (tb.submissions.length === 1) {
+    // Single winner (auto)
+    tb.conflict = false
+    tb.winnerTeamId = tb.submissions[0].teamId
 
-  recomputeDerived()
-  return true
+    const team = getTeam(tb.winnerTeamId)
+    if (team) team.score += 1
+
+    recomputeDerived()
+    return { status: 'WINNER_SET', winnerTeamId: tb.winnerTeamId }
+  }
+
+  // Multiple winners → GM must resolve
+  tb.conflict = true
+  tb.winnerTeamId = null
+  return { status: 'NEEDS_RESOLVE' }
 }
 
 export function resolveTieBreakerWinner(teamId) {
   const tb = store.game.tieBreaker
+
   if (store.game.state.phase !== PHASES.TIE_BREAKER)
     throw new Error('Not in TIE_BREAKER.')
-  if (!tb.submissions.length) throw new Error('No submissions to resolve.')
+  if (!tb.finalized) throw new Error('Finalize first.')
   if (!tb.conflict) throw new Error('No conflict to resolve.')
+  if (!tb.submissions.length) throw new Error('No submissions to resolve.')
   if (tb.winnerTeamId) throw new Error('Winner already set.')
 
   const isCandidate = tb.submissions.some((s) => s.teamId === teamId)
   if (!isCandidate) throw new Error('Team is not a submission candidate.')
 
   tb.winnerTeamId = teamId
+  tb.conflict = false
+  tb.finalized = true
   tb.scoringOpen = false
 
   const team = getTeam(teamId)
@@ -517,6 +530,7 @@ export function resolveTieBreakerWinner(teamId) {
 
   recomputeDerived()
 }
+
 export function autoAssignBySeatOrder() {
   const n = store.game.teams.length
   const proctors = store.game.proctors
@@ -538,5 +552,8 @@ export function autoAssignBySeatOrder() {
     if (i >= n) break
   }
   recomputeDerived()
+}
 
+export function finalizeTieBreakerIfReady() {
+  return finalizeTieBreaker()
 }

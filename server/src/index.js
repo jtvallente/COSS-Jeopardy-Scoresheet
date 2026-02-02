@@ -284,34 +284,30 @@ app.post('/api/tiebreaker/open', (req, res) => {
 })
 
 app.post('/api/tiebreaker/correct', (req, res) => {
-  const { proctorId, teamId } = req.body
-  if (!proctorId || !teamId) {
-    return res
-      .status(400)
-      .json({ ok: false, error: 'proctorId + teamId required' })
-  }
-
-  snapshot()
-  try {
-    submitTieBreakerCorrect({ proctorId, teamId })
-    finalizeTieBreakerIfReady()
-    broadcast()
-    res.json({ ok: true, game: store.game })
-  } catch (e) {
-    res.status(403).json({ ok: false, error: e.message })
-  }
-})
-
-app.post('/api/tiebreaker/finalize', (req, res) => {
-  snapshot()
-  try {
-    finalizeTieBreakerIfReady()
-    broadcast()
-    res.json({ ok: true, game: store.game })
-  } catch (e) {
-    res.status(400).json({ ok: false, error: e.message })
-  }
-})
+    try {
+      snapshot()
+      submitTieBreakerCorrect({
+        proctorId: req.body.proctorId,
+        teamId: req.body.teamId,
+      })
+      broadcast()
+      return res.json({ ok: true, game: store.game })
+    } catch (e) {
+      return res.status(400).json({ ok: false, error: e.message })
+    }
+  })
+  
+  app.post('/api/tiebreaker/finalize', (req, res) => {
+    try {
+      snapshot()
+      const result = finalizeTieBreakerIfReady()
+      broadcast()
+      return res.json({ ok: true, game: store.game, result })
+    } catch (e) {
+      return res.status(400).json({ ok: false, error: e.message })
+    }
+  })
+  
 
 app.post('/api/tiebreaker/resolve', (req, res) => {
   const { teamId } = req.body

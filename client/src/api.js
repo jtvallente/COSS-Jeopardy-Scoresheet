@@ -8,31 +8,35 @@ function getGameId() {
 }
 
 async function request(path, { method = "GET", body } = {}) {
-  const headers = {
-    "Content-Type": "application/json",
-    "x-game-id": getGameId(), // ✅ required for the "enter game ID" workaround
-  };
-
-  const res = await fetch(`${API}${path}`, {
-    method,
-    headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
-
-  // Handle non-JSON (rare) safely
-  let json;
-  try {
-    json = await res.json();
-  } catch {
-    throw new Error(`Request failed (${res.status})`);
+    const headers = {
+      "Content-Type": "application/json",
+      "x-game-id": getGameId(),
+      "Cache-Control": "no-cache",
+    };
+  
+    const res = await fetch(`${API}${path}`, {
+      method,
+      headers,
+      cache: "no-store",
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  
+    let json = null;
+    try {
+      json = await res.json();
+    } catch {
+      // if server returned html/text (proxy error, etc)
+      if (!res.ok) throw new Error(`Request failed (${res.status})`);
+      return null;
+    }
+  
+    if (!res.ok || json?.ok === false) {
+      throw new Error(json?.error || `Request failed (${res.status})`);
+    }
+  
+    return json.game ?? json;
   }
-
-  // If your server returns { ok:false, error:"..." }
-  if (!json.ok) throw new Error(json.error || "Request failed");
-
-  // Many endpoints return { ok:true, game }
-  return json.game ?? json;
-}
+  
 
 async function post(path, body) {
   return request(path, { method: "POST", body });

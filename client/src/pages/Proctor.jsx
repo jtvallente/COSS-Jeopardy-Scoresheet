@@ -77,8 +77,13 @@ export default function Proctor() {
   const scoringDisabled = !game.state.scoringOpen
   const betsDisabled = !game.state.betsOpen
 
-  const tieIds = game.clincher?.tiedTeamIds || []
   const inTieBreaker = phase === 'TIE_BREAKER'
+
+  // In TB phase, use frozen candidates. Otherwise use live clincher list.
+  const tieIds = inTieBreaker
+    ? game.tieBreaker?.candidateTeamIds || []
+    : game.clincher?.tiedTeamIds || []
+  const tbScoringOpen = !!game.tieBreaker?.scoringOpen
   const isClincherTeam = (teamId) => tieIds.includes(teamId)
 
   function flashRow(teamId, type) {
@@ -540,13 +545,21 @@ export default function Proctor() {
             )}
 
             {/* Category */}
-            <span className="pill" style={{ borderColor: 'rgba(4,37,224,.55)' }}>
-              Category: <b style={{ color: 'var(--text)' }}>{game.state.roundLabel}</b>
+            <span
+              className="pill"
+              style={{ borderColor: 'rgba(4,37,224,.55)' }}
+            >
+              Category:{' '}
+              <b style={{ color: 'var(--text)' }}>{game.state.roundLabel}</b>
             </span>
 
             {/* Time */}
-            <span className="pill" style={{ borderColor: 'rgba(4,37,224,.55)' }}>
-              Time: <b style={{ color: 'var(--text)' }}>{game.state.seconds}s</b>
+            <span
+              className="pill"
+              style={{ borderColor: 'rgba(4,37,224,.55)' }}
+            >
+              Time:{' '}
+              <b style={{ color: 'var(--text)' }}>{game.state.seconds}s</b>
             </span>
           </div>
 
@@ -555,12 +568,17 @@ export default function Proctor() {
 
         {/* ASSIGNED TEAMS */}
         <div className="section">
-          <h2 className="sectionTitle">Assigned Teams ({assignedTeams.length}/5)</h2>
-          <div className="sectionSub">Tap once per clue. Updates live (no refresh).</div>
+          <h2 className="sectionTitle">
+            Assigned Teams ({assignedTeams.length}/5)
+          </h2>
+          <div className="sectionSub">
+            Tap once per clue. Updates live (no refresh).
+          </div>
 
           {assignedTeams.length === 0 ? (
             <div className="sectionSub" style={{ marginTop: 10 }}>
-              No teams assigned yet. Ask the Game Master to run Auto-Assign and Save.
+              No teams assigned yet. Ask the Game Master to run Auto-Assign and
+              Save.
             </div>
           ) : (
             <div className="teamGrid">
@@ -576,16 +594,22 @@ export default function Proctor() {
                   isElim ||
                   isDQ ||
                   (inTieBreaker && !isClincherTeam(t.id)) ||
+                  (inTieBreaker && !tbScoringOpen) ||
                   (!inTieBreaker && scoringDisabled)
 
-                const disableBetControls = isBusy || isElim || isDQ || betsDisabled
+                const disableBetControls =
+                  isBusy || isElim || isDQ || betsDisabled
 
                 const draft = betDrafts[t.id] ?? String(game.bets?.[t.id] ?? 0)
                 const saved = String(game.bets?.[t.id] ?? 0)
                 const isDirty = draft !== saved
 
                 const flashClass =
-                  flash.teamId === t.id ? (flash.type === 'ok' ? 'flashOk' : 'flashErr') : ''
+                  flash.teamId === t.id
+                    ? flash.type === 'ok'
+                      ? 'flashOk'
+                      : 'flashErr'
+                    : ''
 
                 const tag = isElim
                   ? { cls: 'bad', txt: 'ELIM' }
@@ -607,8 +631,13 @@ export default function Proctor() {
                       <div>
                         <div className="teamName">{t.name}</div>
                         <div className="metaRow">
-                          <span className={`statusPill ${tag.cls}`}>{tag.txt}</span>
-                          <span className="statusPill" style={{ color: 'var(--muted)' }}>
+                          <span className={`statusPill ${tag.cls}`}>
+                            {tag.txt}
+                          </span>
+                          <span
+                            className="statusPill"
+                            style={{ color: 'var(--muted)' }}
+                          >
                             {t.id}
                           </span>
                         </div>
@@ -630,7 +659,10 @@ export default function Proctor() {
                           max={t.score}
                           value={draft}
                           onChange={(e) =>
-                            setBetDrafts((prev) => ({ ...prev, [t.id]: e.target.value }))
+                            setBetDrafts((prev) => ({
+                              ...prev,
+                              [t.id]: e.target.value,
+                            }))
                           }
                           disabled={disableBetControls}
                           inputMode="numeric"
@@ -647,10 +679,14 @@ export default function Proctor() {
                         </button>
 
                         {!betsDisabled && !isElim && !isDQ && (
-                          <div className="betState">{isDirty ? 'Not saved' : 'Saved'}</div>
+                          <div className="betState">
+                            {isDirty ? 'Not saved' : 'Saved'}
+                          </div>
                         )}
 
-                        {betsDisabled && <div className="betState">Bets closed</div>}
+                        {betsDisabled && (
+                          <div className="betState">Bets closed</div>
+                        )}
                       </div>
                     )}
 
@@ -680,7 +716,10 @@ export default function Proctor() {
                         </button>
                       </div>
                     ) : (
-                      <div className="btnRow" style={{ gridTemplateColumns: '1fr' }}>
+                      <div
+                        className="btnRow"
+                        style={{ gridTemplateColumns: '1fr' }}
+                      >
                         <button
                           className="btn btnPrimary"
                           disabled={disableScoreButtons}
@@ -701,7 +740,7 @@ export default function Proctor() {
         <div className="section">
           <h2 className="sectionTitle">Clincher Candidates</h2>
 
-          {game.clincher.needed ? (
+          {(inTieBreaker ? tieIds.length > 0 : game.clincher.needed) ? (
             <div className="clincherRow">
               {tieIds.map((id) => {
                 const team = game.teams.find((t) => t.id === id)

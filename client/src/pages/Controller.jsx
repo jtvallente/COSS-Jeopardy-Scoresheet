@@ -1,7 +1,14 @@
 // client/src/pages/Controller.jsx
 import { useMemo, useState } from 'react'
 import { useGame } from '../useGame'
-import { resetGame, undo, updateState, tbFinalize, tbNewClue, tbResolve } from '../api'
+import {
+  resetGame,
+  undo,
+  updateState,
+  tbFinalize,
+  tbNewClue,
+  tbResolve,
+} from '../api'
 
 /* ---------------- Minimal GitHub-ish Icons ---------------- */
 
@@ -67,6 +74,19 @@ const ITrophy = () => (
   </svg>
 )
 
+const ITag = () => (
+  <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
+    <path d="M7.5 1h-4A1.5 1.5 0 0 0 2 2.5v4a1.5 1.5 0 0 0 .44 1.06l6 6a1.5 1.5 0 0 0 2.12 0l3-3a1.5 1.5 0 0 0 0-2.12l-6-6A1.5 1.5 0 0 0 7.5 1Zm-4 .5a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 .35.15l6 6a.5.5 0 0 1 0 .7l-3 3a.5.5 0 0 1-.7 0l-6-6A.5.5 0 0 1 4.5 4V1.5Z" />
+    <path d="M5.25 3.5a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z" />
+  </svg>
+)
+
+const ICurrencyDollar = () => (
+  <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
+    <path d="M8 1a.75.75 0 0 1 .75.75V3.1c1.7.23 3 1.34 3 2.9a.75.75 0 0 1-1.5 0c0-.9-.87-1.6-2.25-1.6S5.75 5.1 5.75 6c0 .8.72 1.26 2.18 1.55l.14.03c1.78.36 3.18 1.13 3.18 2.92 0 1.56-1.3 2.67-3 2.9v1.35a.75.75 0 0 1-1.5 0V13.4c-1.7-.23-3-1.34-3-2.9a.75.75 0 0 1 1.5 0c0 .9.87 1.6 2.25 1.6s2.25-.7 2.25-1.6c0-.8-.72-1.26-2.18-1.55l-.14-.03C5.4 8.56 4 7.79 4 6c0-1.56 1.3-2.67 3-2.9V1.75A.75.75 0 0 1 8 1Z" />
+  </svg>
+)
+
 /* ---------------- Data ---------------- */
 
 const PHASES = [
@@ -77,13 +97,7 @@ const PHASES = [
   { key: 'TIE_BREAKER', label: 'Tie-breaker' },
 ]
 
-const ROUND_LABELS = [
-  'VIDEO GAMES',
-  'MUSIC',
-  'TECH',
-  'ANIME',
-  'MEMES',
-]
+const ROUND_LABELS = ['VIDEO GAMES', 'MUSIC', 'TECH', 'ANIME', 'MEMES']
 
 export default function Controller() {
   const { game } = useGame()
@@ -107,18 +121,31 @@ export default function Controller() {
     return []
   }, [s.phase])
 
+  // ✅ Clue value required ONLY for EASY/AVERAGE (your “value buttons” rounds)
+  const clueValueRequired = s.phase === 'EASY' || s.phase === 'AVERAGE'
+  const clueValueIsSet =
+    !clueValueRequired ||
+    (Number.isFinite(Number(s.clueValue)) && Number(s.clueValue) > 0)
+
+  // ✅ rule 1: scoring must not be opened if clue value not yet set
+  const scoringToggleDisabledReason =
+    clueValueRequired && !clueValueIsSet ? 'Set a clue value first' : null
+
   function commitClueDraft() {
     const trimmed = clueDraft.trim()
     if (!trimmed) {
       setClueDraft(String(s.clueNumber ?? 1))
       return
     }
+
     const n = Number(trimmed)
     if (!Number.isFinite(n) || n < 1) {
       setClueDraft(String(s.clueNumber ?? 1))
       return
     }
-    updateState({ clueNumber: n })
+
+    // ✅ rule 2: every clue number change -> scoring must reset to close
+    updateState({ clueNumber: n, scoringOpen: false })
   }
 
   async function doReset() {
@@ -134,7 +161,6 @@ export default function Controller() {
   const scoringOn = !!s.scoringOpen
   const betsOn = !!s.betsOpen
 
-  // ✅ Tie-breaker gating: only show “live controls” when needed or already in TB
   const clincherNeeded = !!game.clincher?.needed
   const isTieBreakerPhase = s.phase === 'TIE_BREAKER'
   const tieBreakActive = clincherNeeded || isTieBreakerPhase
@@ -143,23 +169,33 @@ export default function Controller() {
   const canFinalize = isTieBreakerPhase && submissionsCount > 0
   const canResolve = !!tb?.conflict && submissionsCount > 0
 
-  // ✅ One-button start: sets phase + opens scoring + creates new TB clue
+  // ✅ One-button start: TB does not depend on clue value, so it can open scoring
   async function startTieBreaker() {
-    // Put the whole app in tie-break mode first (so proctors see TB UI)
     await updateState({
       phase: 'TIE_BREAKER',
       roundLabel: 'TIE BREAKER',
       scoringOpen: true,
       betsOpen: false,
     })
-    // Then spawn the new TB clue on server
     await tbNewClue()
+  }
+
+  async function setClueValue(v) {
+    // Nice “setup” behavior: choosing a value closes scoring
+    // so you don’t accidentally score a clue while still preparing.
+    await updateState({ clueValue: v, scoringOpen: false })
+  }
+
+  async function toggleScoring() {
+    // Guard in code too (not just disabled UI)
+    if (clueValueRequired && !clueValueIsSet) return
+    await updateState({ scoringOpen: !s.scoringOpen })
   }
 
   return (
     <div className="gh-page">
       <style>{`
-        /* GitHub-ish baseline */
+        /* (unchanged CSS from your file) */
         .gh-page{
           --bg: #0d1117;
           --panel: #161b22;
@@ -167,297 +203,143 @@ export default function Controller() {
           --border: #30363d;
           --text: #c9d1d9;
           --muted: #8b949e;
-          --accent: #0425e0; /* your blue */
+          --accent: #0425e0;
           --danger: #f85149;
           --ok: #3fb950;
           --shadow: 0 0 0 1px var(--border);
           color: var(--text);
         }
-
         .gh-page, .gh-page *{ box-sizing: border-box; }
-        .gh-wrap{
-          max-width: 1200px;
-          margin: 0 auto;
-          padding: 16px;
-        }
-
-        .gh-header{
-          display:flex;
-          align-items:center;
-          justify-content:space-between;
-          gap: 12px;
-          margin-bottom: 12px;
-        }
-
-        .gh-title{
-          display:flex;
-          align-items:center;
-          gap: 10px;
-          font-size: 20px;
-          font-weight: 800;
-          letter-spacing: .01em;
-          color: var(--text);
-        }
-
-        .gh-sub{
-          margin-top: 2px;
-          color: var(--muted);
-          font-size: 12px;
-        }
-
-        .gh-meta{
-          display:flex;
-          gap: 8px;
-          flex-wrap: wrap;
-          justify-content: flex-end;
-        }
-
-        .gh-chip{
-          display:inline-flex;
-          align-items:center;
-          gap: 8px;
-          padding: 6px 10px;
-          border-radius: 999px;
-          background: var(--panel);
-          box-shadow: var(--shadow);
-          font-size: 12px;
-          color: var(--muted);
-          white-space: nowrap;
-        }
+        .gh-wrap{ max-width: 1200px; margin: 0 auto; padding: 16px; }
+        .gh-header{ display:flex; align-items:center; justify-content:space-between; gap: 12px; margin-bottom: 12px; }
+        .gh-title{ display:flex; align-items:center; gap: 10px; font-size: 20px; font-weight: 800; letter-spacing: .01em; color: var(--text); }
+        .gh-sub{ margin-top: 2px; color: var(--muted); font-size: 12px; }
+        .gh-meta{ display:flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+        .gh-chip{ display:inline-flex; align-items:center; gap: 8px; padding: 6px 10px; border-radius: 999px; background: var(--panel); box-shadow: var(--shadow); font-size: 12px; color: var(--muted); white-space: nowrap; }
         .gh-chip b{ color: var(--text); }
-
-        .gh-ico{
-          display:inline-flex;
-          width: 16px;
-          height: 16px;
-          color: var(--muted);
-        }
-
-        .gh-grid{
-          display:grid;
-          grid-template-columns: 1.4fr 1fr;
-          gap: 12px;
-          align-items:start;
-        }
-
-        .gh-card{
-          background: var(--panel);
-          box-shadow: var(--shadow);
-          border-radius: 10px;
-          padding: 12px;
-          min-width: 0;
-        }
-
-        .gh-card h2{
-          margin: 0 0 10px;
-          font-size: 13px;
-          font-weight: 800;
-          color: var(--text);
-          display:flex;
-          align-items:center;
-          gap: 8px;
-        }
-
-        .gh-fields{
-          display:grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 10px;
-        }
-
-        .gh-field{
-          display:flex;
-          flex-direction: column;
-          gap: 6px;
-          min-width: 0;
-        }
-
-        .gh-label{
-          font-size: 11px;
-          color: var(--muted);
-          font-weight: 700;
-        }
-
-        .gh-input, .gh-select{
-          width: 100%;
-          height: 34px;
-          border-radius: 6px;
-          border: 1px solid var(--border);
-          background: var(--panel2);
-          color: var(--text);
-          padding: 0 10px;
-          outline: none;
-          min-width: 0;
-        }
-
-        .gh-input:focus, .gh-select:focus{
-          border-color: var(--accent);
-          box-shadow: 0 0 0 3px rgba(4,37,224,.25);
-        }
-
-        .gh-help{
-          font-size: 12px;
-          color: var(--muted);
-          display:flex;
-          align-items:center;
-          gap: 8px;
-          margin-top: 6px;
-          line-height: 1.4;
-        }
-
-        .gh-values{
-          display:grid;
-          grid-template-columns: repeat(4, 1fr);
-          gap: 8px;
-          margin-top: 8px;
-        }
-
-        .gh-value{
-          height: 34px;
-          border-radius: 6px;
-          border: 1px solid var(--border);
-          background: var(--panel2);
-          color: var(--text);
-          font-weight: 800;
-          cursor: pointer;
-        }
-
-        .gh-value.active{
-          border-color: var(--accent);
-          box-shadow: 0 0 0 2px rgba(4,37,224,.25) inset;
-        }
-
-        .gh-toggleRow{
-          display:grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 10px;
-          margin-top: 10px;
-        }
-
-        .gh-toggle{
-          height: 38px;
-          border-radius: 6px;
-          border: 1px solid var(--border);
-          background: var(--panel2);
-          color: var(--text);
-          font-weight: 800;
-          cursor: pointer;
-          display:flex;
-          align-items:center;
-          justify-content:space-between;
-          padding: 0 10px;
-          gap: 10px;
-          min-width: 0;
-        }
-
-        .gh-badge{
-          display:inline-flex;
-          align-items:center;
-          gap: 6px;
-          font-size: 12px;
-          color: var(--muted);
-          font-weight: 800;
-        }
-
-        .dot{
-          width: 8px;
-          height: 8px;
-          border-radius: 99px;
-          background: var(--muted);
-        }
+        .gh-ico{ display:inline-flex; width: 16px; height: 16px; color: var(--muted); }
+        .gh-grid{ display:grid; grid-template-columns: 1.4fr 1fr; gap: 12px; align-items:start; }
+        .gh-card{ background: var(--panel); box-shadow: var(--shadow); border-radius: 10px; padding: 12px; min-width: 0; }
+        .gh-card h2{ margin: 0 0 10px; font-size: 13px; font-weight: 800; color: var(--text); display:flex; align-items:center; gap: 8px; }
+        .gh-fields{ display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .gh-field{ display:flex; flex-direction: column; gap: 6px; min-width: 0; }
+        .gh-label{ font-size: 11px; color: var(--muted); font-weight: 700; }
+        .gh-input, .gh-select{ width: 100%; height: 34px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel2); color: var(--text); padding: 0 10px; outline: none; min-width: 0; }
+        .gh-input:focus, .gh-select:focus{ border-color: var(--accent); box-shadow: 0 0 0 3px rgba(4,37,224,.25); }
+        .gh-help{ font-size: 12px; color: var(--muted); display:flex; align-items:center; gap: 8px; margin-top: 6px; line-height: 1.4; }
+        .gh-values{ display:grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 8px; }
+        .gh-value{ height: 34px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel2); color: var(--text); font-weight: 800; cursor: pointer; }
+        .gh-value.active{ border-color: var(--accent); box-shadow: 0 0 0 2px rgba(4,37,224,.25) inset; }
+        .gh-toggleRow{ display:grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+        .gh-toggle{ height: 38px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel2); color: var(--text); font-weight: 800; cursor: pointer; display:flex; align-items:center; justify-content:space-between; padding: 0 10px; gap: 10px; min-width: 0; }
+        .gh-badge{ display:inline-flex; align-items:center; gap: 6px; font-size: 12px; color: var(--muted); font-weight: 800; }
+        .dot{ width: 8px; height: 8px; border-radius: 99px; background: var(--muted); }
         .dot.on{ background: var(--ok); }
         .dot.off{ background: var(--danger); }
-
-        .gh-actions{
-          display:flex;
-          gap: 10px;
-          margin-top: 10px;
-          flex-wrap: wrap;
+        .gh-actions{ display:flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+        .gh-btn{ height: 34px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel2); color: var(--text); font-weight: 800; cursor: pointer; display:inline-flex; align-items:center; justify-content:center; gap: 8px; padding: 0 12px; }
+        .gh-btn.primary{ border-color: rgba(4,37,224,.7); background: rgba(4,37,224,.18); }
+        .gh-btn:disabled{ opacity: .55; cursor: not-allowed; }
+        .gh-btn.danger{ border-color: rgba(248,81,73,.6); background: rgba(248,81,73,.15); color: #ffddda; }
+        .gh-list{ display:flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+        .gh-item{ border-radius: 6px; border: 1px solid var(--border); background: var(--panel2); padding: 8px 10px; display:flex; align-items:center; justify-content:space-between; gap: 10px; }
+        .gh-item strong{ font-size: 13px; color: var(--text); }
+        .gh-item small{ color: var(--muted); font-weight: 700; }
+        .gh-alert{ border-radius: 6px; border: 1px solid rgba(248,81,73,.6); background: rgba(248,81,73,.12); padding: 8px 10px; color: #ffd7d5; font-weight: 800; display:flex; align-items:center; justify-content:space-between; gap: 10px; }
+        .gh-ok{ border-radius: 6px; border: 1px solid rgba(63,185,80,.55); background: rgba(63,185,80,.10); padding: 8px 10px; color: #d2fedb; font-weight: 800; display:flex; align-items:center; gap: 8px; }
+        .gh-overview{
+        border: 1px solid var(--border);
+        background: var(--panel2);
+        border-radius: 10px;
+        padding: 10px;
+        box-shadow: 0 0 0 1px rgba(0,0,0,.12) inset;
+        margin-bottom: 10px;
         }
-
-        .gh-btn{
-          height: 34px;
-          border-radius: 6px;
-          border: 1px solid var(--border);
-          background: var(--panel2);
-          color: var(--text);
-          font-weight: 800;
-          cursor: pointer;
-          display:inline-flex;
-          align-items:center;
-          justify-content:center;
-          gap: 8px;
-          padding: 0 12px;
+        .gh-overviewTop{
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap: 10px;
+        flex-wrap:wrap;
         }
-
-        .gh-btn.primary{
-          border-color: rgba(4,37,224,.7);
-          background: rgba(4,37,224,.18);
+        .gh-overviewTitle{
+        display:flex;
+        align-items:center;
+        gap: 8px;
+        font-weight: 900;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        font-size: 11px;
+        color: var(--muted);
         }
-
-        .gh-btn:disabled{
-          opacity: .55;
-          cursor: not-allowed;
+        .gh-overviewGrid{
+        margin-top: 10px;
+        display:grid;
+        grid-template-columns: repeat(2, minmax(0,1fr));
+        gap: 8px;
         }
-
-        .gh-btn.danger{
-          border-color: rgba(248,81,73,.6);
-          background: rgba(248,81,73,.15);
-          color: #ffddda;
+        .gh-stat{
+        border: 1px solid var(--border);
+        background: rgba(255,255,255,.02);
+        border-radius: 10px;
+        padding: 10px;
+        display:flex;
+        align-items:flex-start;
+        gap: 10px;
+        min-width: 0;
         }
-
-        .gh-list{
-          display:flex;
-          flex-direction: column;
-          gap: 8px;
-          margin-top: 8px;
+        .gh-stat .gh-ico{ margin-top: 1px; }
+        .gh-statLabel{
+        font-size: 11px;
+        color: var(--muted);
+        font-weight: 800;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        line-height: 1.1;
         }
-
-        .gh-item{
-          border-radius: 6px;
-          border: 1px solid var(--border);
-          background: var(--panel2);
-          padding: 8px 10px;
-          display:flex;
-          align-items:center;
-          justify-content:space-between;
-          gap: 10px;
+        .gh-statValue{
+        margin-top: 4px;
+        font-size: 14px;
+        font-weight: 900;
+        color: var(--text);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
         }
-
-        .gh-item strong{
-          font-size: 13px;
-          color: var(--text);
+        .gh-pillRow{
+        display:flex;
+        gap: 8px;
+        flex-wrap:wrap;
         }
-
-        .gh-item small{
-          color: var(--muted);
-          font-weight: 700;
+        .gh-pill{
+        display:inline-flex;
+        align-items:center;
+        gap: 8px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: rgba(255,255,255,.02);
+        font-weight: 900;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        font-size: 11px;
+        color: var(--text);
+        white-space: nowrap;
         }
-
-        .gh-alert{
-          border-radius: 6px;
-          border: 1px solid rgba(248,81,73,.6);
-          background: rgba(248,81,73,.12);
-          padding: 8px 10px;
-          color: #ffd7d5;
-          font-weight: 800;
-          display:flex;
-          align-items:center;
-          justify-content:space-between;
-          gap: 10px;
+        .gh-pill .dot{ width: 10px; height: 10px; }
+        .gh-pill.good{ border-color: rgba(63,185,80,.55); }
+        .gh-pill.bad{ border-color: rgba(248,81,73,.55); }
+        .gh-pill.warn{ border-color: rgba(210,153,34,.55); }
+        @media (max-width: 920px){
+        .gh-overviewGrid{ grid-template-columns: 1fr; }
         }
-
-        .gh-ok{
-          border-radius: 6px;
-          border: 1px solid rgba(63,185,80,.55);
-          background: rgba(63,185,80,.10);
-          padding: 8px 10px;
-          color: #d2fedb;
-          font-weight: 800;
-          display:flex;
-          align-items:center;
-          gap: 8px;
+        .gh-span2{
+        grid-column: 1 / -1; /* makes it the “---” row */
         }
-
+        @media (max-width: 920px){
+        .gh-overviewGrid{ grid-template-columns: 1fr; }
+        .gh-span2{ grid-column: auto; }
+        }
         @media (max-width: 920px){
           .gh-grid{ grid-template-columns: 1fr; }
           .gh-fields{ grid-template-columns: 1fr; }
@@ -471,26 +353,123 @@ export default function Controller() {
         <div className="gh-header">
           <div>
             <div className="gh-title">CONTROLLER • GAME MASTER</div>
-            <div className="gh-sub">Control panel. Updates live to proctors.</div>
+            <div className="gh-sub">
+              Control panel. Updates live to proctors.
+            </div>
           </div>
 
-          <div className="gh-meta">
+          {/* <div className="gh-meta">
             <span className="gh-chip">
-              <Icon><IFlag /></Icon> Phase: <b>{s.phase}</b>
+              <Icon>
+                <IFlag />
+              </Icon>{' '}
+              Phase: <b>{s.phase}</b>
             </span>
             <span className="gh-chip">
-              <Icon><IHash /></Icon> Clue: <b>{s.clueNumber}</b>
+              <Icon>
+                <IHash />
+              </Icon>{' '}
+              Clue: <b>{s.clueNumber}</b>
             </span>
             <span className="gh-chip">
-              <Icon><IClock /></Icon> Timer: <b>{s.seconds}s</b>
+              <Icon>
+                <IClock />
+              </Icon>{' '}
+              Timer: <b>{s.seconds}s</b>
             </span>
-          </div>
+          </div> */}
         </div>
 
         <div className="gh-grid">
           {/* LEFT */}
           <div className="gh-card">
-            <h2><Icon><IFlag /></Icon> Round / State</h2>
+            <div className="gh-overview">
+              <div className="gh-overviewTop">
+                <div className="gh-overviewTitle">
+                  <Icon>
+                    <IFlag />
+                  </Icon>{' '}
+                  Round Overview
+                </div>
+
+                <div className="gh-pillRow">
+                  <span
+                    className={'gh-pill ' + (s.scoringOpen ? 'good' : 'bad')}
+                  >
+                    <span className={'dot ' + (s.scoringOpen ? 'on' : 'off')} />
+                    Scoring {s.scoringOpen ? 'Open' : 'Closed'}
+                  </span>
+
+                  <span className={'gh-pill ' + (s.betsOpen ? 'warn' : 'bad')}>
+                    <span className={'dot ' + (s.betsOpen ? 'on' : 'off')} />
+                    Bets {s.betsOpen ? 'Open' : 'Closed'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="gh-overviewGrid">
+                <div className="gh-stat">
+                  <Icon>
+                    <IFlag />
+                  </Icon>
+                  <div style={{ minWidth: 0 }}>
+                    <div className="gh-statLabel">Phase</div>
+                    <div className="gh-statValue">{s.phase}</div>
+                  </div>
+                </div>
+
+                <div className="gh-stat">
+                  <Icon>
+                    <ITag />
+                  </Icon>
+                  <div style={{ minWidth: 0 }}>
+                    <div className="gh-statLabel">Category</div>
+                    <div className="gh-statValue">{s.roundLabel}</div>
+                  </div>
+                </div>
+
+                <div className="gh-stat">
+                  <Icon>
+                    <IHash />
+                  </Icon>
+                  <div style={{ minWidth: 0 }}>
+                    <div className="gh-statLabel">Clue #</div>
+                    <div className="gh-statValue">{s.clueNumber}</div>
+                  </div>
+                </div>
+
+                <div className="gh-stat">
+                  <Icon>
+                    <IClock />
+                  </Icon>
+                  <div style={{ minWidth: 0 }}>
+                    <div className="gh-statLabel">Seconds</div>
+                    <div className="gh-statValue">{s.seconds}s</div>
+                  </div>
+                </div>
+                {/* --- Full-width bottom row (---) */}
+                <div className="gh-stat gh-span2">
+                  <Icon>
+                    <ICurrencyDollar />
+                  </Icon>
+                  <div style={{ minWidth: 0 }}>
+                    <div className="gh-statLabel">Clue Value</div>
+                    <div className="gh-statValue">
+                      {(s.phase === 'EASY' || s.phase === 'AVERAGE') &&
+                      Number(s.clueValue) > 0
+                        ? s.clueValue
+                        : '—'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <h2>
+              <Icon>
+                <IFlag />
+              </Icon>{' '}
+              Round / State
+            </h2>
 
             <div className="gh-fields">
               <div className="gh-field">
@@ -498,10 +477,15 @@ export default function Controller() {
                 <select
                   className="gh-select"
                   value={s.phase}
-                  onChange={(e) => updateState({ phase: e.target.value })}
+                  onChange={(e) =>
+                    updateState({ phase: e.target.value, scoringOpen: false })
+                  }
+                  title="Changing phase closes scoring"
                 >
                   {PHASES.map((p) => (
-                    <option key={p.key} value={p.key}>{p.label}</option>
+                    <option key={p.key} value={p.key}>
+                      {p.label}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -514,7 +498,9 @@ export default function Controller() {
                   onChange={(e) => updateState({ roundLabel: e.target.value })}
                 >
                   {ROUND_LABELS.map((x) => (
-                    <option key={x} value={x}>{x}</option>
+                    <option key={x} value={x}>
+                      {x}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -526,11 +512,16 @@ export default function Controller() {
                   value={clueDraft}
                   onChange={(e) => setClueDraft(e.target.value)}
                   onBlur={commitClueDraft}
+                  title="Changing clue number closes scoring"
                 >
                   <option value="">Select clue #</option>
                   {[...Array(20)].map((_, i) => {
                     const value = String(i + 1)
-                    return <option key={value} value={value}>{value}</option>
+                    return (
+                      <option key={value} value={value}>
+                        {value}
+                      </option>
+                    )
                   })}
                 </select>
 
@@ -549,48 +540,87 @@ export default function Controller() {
 
             {allowedValues.length > 0 && (
               <>
-                <div style={{ marginTop: 12 }} className="gh-label">Clue Value</div>
+                <div style={{ marginTop: 12 }} className="gh-label">
+                  Clue Value
+                </div>
                 <div className="gh-values">
                   {allowedValues.map((v) => (
                     <button
                       key={v}
-                      className={'gh-value ' + (s.clueValue === v ? 'active' : '')}
-                      onClick={() => updateState({ clueValue: v })}
+                      className={
+                        'gh-value ' + (s.clueValue === v ? 'active' : '')
+                      }
+                      onClick={() => setClueValue(v)}
+                      title="Setting clue value closes scoring"
                     >
                       {v}
                     </button>
                   ))}
                 </div>
+
+                {!clueValueIsSet && (
+                  <div className="gh-help">
+                    <span style={{ color: 'var(--danger)', fontWeight: 800 }}>
+                      Set a clue value before opening scoring.
+                    </span>
+                  </div>
+                )}
               </>
             )}
 
-            <div style={{ marginTop: 12 }} className="gh-label">Stage Switches</div>
+            <div style={{ marginTop: 12 }} className="gh-label">
+              Stage Switches
+            </div>
             <div className="gh-toggleRow">
-              <button className="gh-toggle" onClick={() => updateState({ scoringOpen: !s.scoringOpen })}>
+              <button
+                className="gh-toggle"
+                onClick={toggleScoring}
+                disabled={!!scoringToggleDisabledReason}
+                title={scoringToggleDisabledReason || 'Toggle scoring'}
+                style={
+                  scoringToggleDisabledReason
+                    ? { opacity: 0.65, cursor: 'not-allowed' }
+                    : undefined
+                }
+              >
                 <span className="gh-badge">
                   <span className={'dot ' + (scoringOn ? 'on' : 'off')} />
                   Scoring
                 </span>
-                <span className="gh-badge" style={{ color: scoringOn ? 'var(--ok)' : 'var(--danger)' }}>
+                <span
+                  className="gh-badge"
+                  style={{ color: scoringOn ? 'var(--ok)' : 'var(--danger)' }}
+                >
                   <Icon>{scoringOn ? <ICheck /> : <IX />}</Icon>
                   {scoringOn ? 'OPEN' : 'CLOSED'}
                 </span>
               </button>
 
               {s.phase === 'DIFFICULT' ? (
-                <button className="gh-toggle" onClick={() => updateState({ betsOpen: !s.betsOpen })}>
+                <button
+                  className="gh-toggle"
+                  onClick={() => updateState({ betsOpen: !s.betsOpen })}
+                >
                   <span className="gh-badge">
                     <span className={'dot ' + (betsOn ? 'on' : 'off')} />
                     Bets
                   </span>
-                  <span className="gh-badge" style={{ color: betsOn ? 'var(--ok)' : 'var(--danger)' }}>
+                  <span
+                    className="gh-badge"
+                    style={{ color: betsOn ? 'var(--ok)' : 'var(--danger)' }}
+                  >
                     <Icon>{betsOn ? <ICheck /> : <IX />}</Icon>
                     {betsOn ? 'OPEN' : 'CLOSED'}
                   </span>
                 </button>
               ) : (
-                <div className="gh-toggle" style={{ opacity: 0.65, cursor: 'not-allowed' }}>
-                  <span className="gh-badge"><span className="dot" /> Bets</span>
+                <div
+                  className="gh-toggle"
+                  style={{ opacity: 0.65, cursor: 'not-allowed' }}
+                >
+                  <span className="gh-badge">
+                    <span className="dot" /> Bets
+                  </span>
                   <span className="gh-badge">DIFFICULT ONLY</span>
                 </div>
               )}
@@ -598,11 +628,20 @@ export default function Controller() {
 
             <div className="gh-actions">
               <button className="gh-btn" onClick={() => undo()}>
-                <Icon><IUndo /></Icon> Undo
+                <Icon>
+                  <IUndo />
+                </Icon>{' '}
+                Undo
               </button>
 
-              <button className="gh-btn danger" onClick={doReset} title="Resets all scores and state">
-                <Icon><ITrash /></Icon>
+              <button
+                className="gh-btn danger"
+                onClick={doReset}
+                title="Resets all scores and state"
+              >
+                <Icon>
+                  <ITrash />
+                </Icon>
                 {confirmReset ? 'Confirm Reset' : 'Reset'}
               </button>
             </div>
@@ -610,16 +649,26 @@ export default function Controller() {
 
           {/* RIGHT */}
           <div className="gh-card">
-            <h2><Icon><ITrophy /></Icon> Clincher</h2>
+            <h2>
+              <Icon>
+                <ITrophy />
+              </Icon>{' '}
+              Clincher
+            </h2>
 
             {clincherNeeded ? (
               <div className="gh-alert">
                 <span>Top tie detected</span>
-                <span style={{ color: 'var(--muted)' }}>{clincherTeams.length} teams</span>
+                <span style={{ color: 'var(--muted)' }}>
+                  {clincherTeams.length} teams
+                </span>
               </div>
             ) : (
               <div className="gh-ok">
-                <Icon><ICheck /></Icon> No tie for highest score
+                <Icon>
+                  <ICheck />
+                </Icon>{' '}
+                No tie for highest score
               </div>
             )}
 
@@ -629,7 +678,9 @@ export default function Controller() {
                   <div key={t.id} className="gh-item">
                     <div>
                       <strong>{t.name}</strong>
-                      <div><small>{t.id}</small></div>
+                      <div>
+                        <small>{t.id}</small>
+                      </div>
                     </div>
                     <strong>{t.score}</strong>
                   </div>
@@ -638,17 +689,22 @@ export default function Controller() {
 
             <div style={{ height: 12 }} />
 
-            <h2><Icon><IBolt /></Icon> Tie-breaker</h2>
+            <h2>
+              <Icon>
+                <IBolt />
+              </Icon>{' '}
+              Tie-breaker
+            </h2>
 
             {!tieBreakActive ? (
               <div className="gh-help">
-                No tie detected. Tie-break controls stay locked unless a top-tie happens
-                (or you’re already in Tie-breaker phase).
+                No tie detected. Tie-break controls stay locked unless a top-tie
+                happens (or you’re already in Tie-breaker phase).
               </div>
             ) : (
               <div className="gh-help">
-                <b>Step 1:</b> Start Tie-break → <b>Step 2:</b> Proctors press “Tie-break Correct” →
-                <b> Step 3:</b> Finalize.
+                <b>Step 1:</b> Start Tie-break → <b>Step 2:</b> Proctors press
+                “Tie-break Correct” →<b> Step 3:</b> Finalize.
               </div>
             )}
 
@@ -659,7 +715,9 @@ export default function Controller() {
                 disabled={!tieBreakActive}
                 title="Switches phase to TIE_BREAKER, opens scoring, and creates a new tie-break clue"
               >
-                <Icon><IBolt /></Icon>
+                <Icon>
+                  <IBolt />
+                </Icon>
                 Start Tie-break
               </button>
 
@@ -667,35 +725,59 @@ export default function Controller() {
                 className="gh-btn"
                 onClick={() => tbFinalize()}
                 disabled={!canFinalize}
-                title={!isTieBreakerPhase ? 'Switch phase to TIE_BREAKER first' : submissionsCount === 0 ? 'Wait for at least 1 submission' : 'Finalize tie-break'}
+                title={
+                  !isTieBreakerPhase
+                    ? 'Switch phase to TIE_BREAKER first'
+                    : submissionsCount === 0
+                    ? 'Wait for at least 1 submission'
+                    : 'Finalize tie-break'
+                }
               >
-                <Icon><IClock /></Icon>
+                <Icon>
+                  <IClock />
+                </Icon>
                 Finalize
               </button>
             </div>
 
             <div className="gh-list">
               <div className="gh-item">
-                <div><small>Mode</small></div>
-                <strong style={{ color: isTieBreakerPhase ? 'var(--accent)' : 'var(--muted)' }}>
+                <div>
+                  <small>Mode</small>
+                </div>
+                <strong
+                  style={{
+                    color: isTieBreakerPhase ? 'var(--accent)' : 'var(--muted)',
+                  }}
+                >
                   {isTieBreakerPhase ? 'TIE_BREAKER' : '—'}
                 </strong>
               </div>
 
               <div className="gh-item">
-                <div><small>Submissions</small></div>
+                <div>
+                  <small>Submissions</small>
+                </div>
                 <strong>{submissionsCount}</strong>
               </div>
 
               <div className="gh-item">
-                <div><small>Conflict</small></div>
-                <strong style={{ color: tb?.conflict ? 'var(--danger)' : 'var(--ok)' }}>
+                <div>
+                  <small>Conflict</small>
+                </div>
+                <strong
+                  style={{
+                    color: tb?.conflict ? 'var(--danger)' : 'var(--ok)',
+                  }}
+                >
                   {tb?.conflict ? 'YES' : 'NO'}
                 </strong>
               </div>
 
               <div className="gh-item">
-                <div><small>Winner</small></div>
+                <div>
+                  <small>Winner</small>
+                </div>
                 <strong>{tb?.winnerTeamId || '—'}</strong>
               </div>
             </div>
@@ -713,7 +795,9 @@ export default function Controller() {
                         style={{ width: '100%', justifyContent: 'flex-start' }}
                         onClick={() => tbResolve(sub.teamId)}
                       >
-                        <Icon><ITrophy /></Icon>
+                        <Icon>
+                          <ITrophy />
+                        </Icon>
                         Pick {team ? team.name : sub.teamId}
                       </button>
                     )
