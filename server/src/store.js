@@ -19,12 +19,15 @@ const PHASES = {
   }
   
   function makeProctors() {
-    return Array.from({ length: 8 }, (_, i) => ({
+    const names = ['Aze', 'Chloe', 'Dal', 'Denmark', 'Dirk', 'Duane', 'Jonz', 'JZ']
+  
+    return names.map((name, i) => ({
       id: `p${i + 1}`,
-      name: `Proctor ${i + 1}`,
+      name,
       teamIds: [], // max 5 teams
     }))
   }
+  
   
   export const store = {
     game: makeInitialGame(),
@@ -40,7 +43,7 @@ const PHASES = {
         phase: PHASES.EASY,
         roundLabel: 'VIDEO GAMES',
         clueNumber: 1,
-        clueValue: 100,
+        clueValue: 0,
         scoringOpen: true,
         seconds: ROUND_PRESETS[PHASES.EASY].seconds,
         betsOpen: false,

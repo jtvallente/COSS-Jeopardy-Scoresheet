@@ -397,9 +397,18 @@ function Sidebar() {
 
         <div className="sb-section">Proctors</div>
         <nav className="sb-nav sb-proctors">
-          {Array.from({ length: 8 }, (_, i) => (
+          {[
+            'Aze',
+            'Chloe',
+            'Dal',
+            'Denmark',
+            'Dirk',
+            'Duane',
+            'Jonz',
+            'JZ',
+          ].map((name, i) => (
             <NavLink
-              key={i}
+              key={name}
               to={`/proctor/p${i + 1}`}
               className={({ isActive }) =>
                 `sb-link ${isActive ? 'active' : ''}`
@@ -408,7 +417,7 @@ function Sidebar() {
               <span className="sb-ico">
                 <IconProctor />
               </span>
-              Proctor {i + 1}
+              Proctor {name}
             </NavLink>
           ))}
         </nav>
