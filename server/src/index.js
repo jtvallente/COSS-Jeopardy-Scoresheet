@@ -304,16 +304,36 @@ app.post('/api/bets/set', (req, res) => {
 })
 
 // ---------------- Tie-breaker ----------------
+
+function assertTieBreakerAllowed() {
+  // Final must be completed (set this when DIFFICULT clue 5 is closed)
+  if (!store.game.state?.postFinal) {
+    const err = new Error('Final round not completed yet.')
+    err.status = 400
+    throw err
+  }
+
+  // Must have top-score tie
+  if (!store.game.clincher?.needed || !(store.game.clincher?.tiedTeamIds || []).length) {
+    const err = new Error('No tie for highest score. Tie-break not allowed.')
+    err.status = 400
+    throw err
+  }
+}
+
 app.post('/api/tiebreaker/new-clue', (req, res) => {
   snapshot()
   try {
+    assertTieBreakerAllowed()
+
     startTieBreakerClue()
     broadcast()
     res.json({ ok: true, game: store.game })
   } catch (e) {
-    res.status(400).json({ ok: false, error: e.message })
+    res.status(e.status || 400).json({ ok: false, error: e.message })
   }
 })
+
 
 app.post('/api/tiebreaker/open', (req, res) => {
   const { scoringOpen } = req.body
@@ -323,11 +343,12 @@ app.post('/api/tiebreaker/open', (req, res) => {
 
   snapshot()
   try {
+    assertTieBreakerAllowed() // optional safety
     openTieBreakerScoring(scoringOpen)
     broadcast()
     res.json({ ok: true, game: store.game })
   } catch (e) {
-    res.status(400).json({ ok: false, error: e.message })
+    res.status(e.status || 400).json({ ok: false, error: e.message })
   }
 })
 
@@ -339,22 +360,24 @@ app.post('/api/tiebreaker/correct', (req, res) => {
 
   snapshot()
   try {
+    assertTieBreakerAllowed() // optional safety
     submitTieBreakerCorrect({ proctorId, teamId })
     broadcast()
     res.json({ ok: true, game: store.game })
   } catch (e) {
-    res.status(400).json({ ok: false, error: e.message })
+    res.status(e.status || 400).json({ ok: false, error: e.message })
   }
 })
 
 app.post('/api/tiebreaker/finalize', (req, res) => {
   snapshot()
   try {
+    assertTieBreakerAllowed() // optional safety
     const result = finalizeTieBreaker()
     broadcast()
     res.json({ ok: true, game: store.game, result })
   } catch (e) {
-    res.status(400).json({ ok: false, error: e.message })
+    res.status(e.status || 400).json({ ok: false, error: e.message })
   }
 })
 
@@ -366,13 +389,15 @@ app.post('/api/tiebreaker/resolve', (req, res) => {
 
   snapshot()
   try {
+    assertTieBreakerAllowed() // optional safety
     resolveTieBreakerWinner(teamId)
     broadcast()
     res.json({ ok: true, game: store.game })
   } catch (e) {
-    res.status(400).json({ ok: false, error: e.message })
+    res.status(e.status || 400).json({ ok: false, error: e.message })
   }
 })
+
 
 // ---------------- Start ----------------
 const PORT = process.env.PORT || 4000

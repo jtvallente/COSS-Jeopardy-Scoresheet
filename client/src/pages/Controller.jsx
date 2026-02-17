@@ -7,7 +7,6 @@ import {
   tbFinalize,
   tbNewClue,
   tbResolve,
-
 } from '../api'
 
 /* ---------------- Minimal GitHub-ish Icons ---------------- */
@@ -105,9 +104,9 @@ export default function Controller() {
   const tb = game.tieBreaker
 
   const [confirmReset, setConfirmReset] = useState(false)
-  const [clueDraft, setClueDraft] = useState(() => String(s.clueNumber ?? 1))
+  // const [clueDraft, setClueDraft] = useState(() => String(s.clueNumber ?? 1))
 
-  const clueIsDirty = clueDraft !== String(s.clueNumber ?? 1)
+  // const clueIsDirty = clueDraft !== String(s.clueNumber ?? 1)
 
   const clincherTeams = useMemo(() => {
     return (game.clincher.tiedTeamIds || [])
@@ -129,21 +128,21 @@ export default function Controller() {
   const scoringToggleDisabledReason =
     clueValueRequired && !clueValueIsSet ? 'Set a clue value first' : null
 
-  function commitClueDraft() {
-    const trimmed = clueDraft.trim()
-    if (!trimmed) {
-      setClueDraft(String(s.clueNumber ?? 1))
-      return
-    }
+  // function commitClueDraft() {
+  //   const trimmed = clueDraft.trim()
+  //   if (!trimmed) {
+  //     setClueDraft(String(s.clueNumber ?? 1))
+  //     return
+  //   }
 
-    const n = Number(trimmed)
-    if (!Number.isFinite(n) || n < 1) {
-      setClueDraft(String(s.clueNumber ?? 1))
-      return
-    }
+  //   const n = Number(trimmed)
+  //   if (!Number.isFinite(n) || n < 1) {
+  //     setClueDraft(String(s.clueNumber ?? 1))
+  //     return
+  //   }
 
-    updateState({ clueNumber: n, scoringOpen: false })
-  }
+  //   updateState({ clueNumber: n, scoringOpen: false })
+  // }
 
   async function doReset() {
     if (!confirmReset) {
@@ -165,6 +164,9 @@ export default function Controller() {
   const submissionsCount = (tb?.submissions || []).length
   const canFinalize = isTieBreakerPhase && submissionsCount > 0
   const canResolve = !!tb?.conflict && submissionsCount > 0
+
+  const canStartTieBreak =
+    game.state.postFinal && game.clincher?.needed && !isTieBreakerPhase
 
   // ---- NEW: progress metrics (server provides these) ----
   const scoringEligible = (game.scoringTracker?.eligibleTeamIds || []).length
@@ -206,7 +208,7 @@ export default function Controller() {
   }
 
   //persistence
-// const [snapshotMsg, setSnapshotMsg] = useState('')
+  // const [snapshotMsg, setSnapshotMsg] = useState('')
   // const [snapshotBusy, setSnapshotBusy] = useState(false)
 
   // function flashSnapshotMsg(text) {
@@ -251,7 +253,7 @@ export default function Controller() {
   return (
     <div className="gh-page">
       <style>{`
-        /* (unchanged CSS from your file) */
+        
         .gh-page{
           --bg: #0d1117;
           --panel: #161b22;
@@ -533,199 +535,242 @@ export default function Controller() {
               </Icon>{' '}
               Round / State
             </h2>
-
-            <div className="gh-fields">
-              <div className="gh-field">
+            <div className="gh-card" style={{ marginTop: 12 }}>
+              <div className="gh-fields">
+                {/* <div className="gh-field">
                 <div className="gh-label">Phase</div>
-                <select
-                  className="gh-select"
-                  value={s.phase}
-                  onChange={(e) =>
-                    updateState({ phase: e.target.value, scoringOpen: false })
-                  }
-                  title="Changing phase closes scoring"
-                >
-                  {PHASES.map((p) => (
-                    <option key={p.key} value={p.key}>
-                      {p.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="gh-field">
-                <div className="gh-label">Category</div>
-                <select
-                  className="gh-select"
-                  value={s.roundLabel}
-                  onChange={(e) => updateState({ roundLabel: e.target.value })}
-                >
-                  {ROUND_LABELS.map((x) => (
-                    <option key={x} value={x}>
-                      {x}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="gh-field">
-                <div className="gh-label">Clue #</div>
-                <select
+                <div
                   className="gh-input"
-                  value={clueDraft}
-                  onChange={(e) => setClueDraft(e.target.value)}
-                  onBlur={commitClueDraft}
-                  title="Changing clue number closes scoring"
+                  style={{ display: 'flex', alignItems: 'center' }}
                 >
-                  <option value="">Select clue #</option>
-                  {[...Array(20)].map((_, i) => {
-                    const value = String(i + 1)
-                    return (
-                      <option key={value} value={value}>
-                        {value}
-                      </option>
-                    )
-                  })}
-                </select>
+                  {s.phase}
+                </div>
+              </div> */}
 
-                {clueIsDirty && (
-                  <div className="gh-help">
-                    <span>Unsaved — select another value or tap outside</span>
+                <div className="gh-field" style={{ gridColumn: '1 / -1' }}>
+                  <div className="gh-label">Category</div>
+
+                  <div className="gh-values">
+                    {ROUND_LABELS.map((label) => (
+                      <button
+                        key={label}
+                        className={
+                          'gh-value ' + (s.roundLabel === label ? 'active' : '')
+                        }
+                        onClick={() => updateState({ roundLabel: label })}
+                        title={`Set category to ${label}`}
+                      >
+                        {label}
+                      </button>
+                    ))}
                   </div>
-                )}
-              </div>
+                </div>
 
-              <div className="gh-field">
+                {/* <div className="gh-field">
+                <div className="gh-label">Clue #</div>
+                <div
+                  className="gh-input"
+                  style={{ display: 'flex', alignItems: 'center' }}
+                >
+                  {s.clueNumber}
+                </div>
+                <div className="gh-help">
+                  Clue number auto-advances when scoring is closed.
+                </div>
+              </div> */}
+
+                {/* <div className="gh-field">
                 <div className="gh-label">Seconds</div>
                 <input className="gh-input" value={s.seconds} disabled />
+              </div> */}
               </div>
-            </div>
 
-            {allowedValues.length > 0 && (
-              <>
-                <div style={{ marginTop: 12 }} className="gh-label">
-                  Clue Value
-                </div>
-                <div className="gh-values">
-                  {allowedValues.map((v) => (
-                    <button
-                      key={v}
-                      className={
-                        'gh-value ' + (s.clueValue === v ? 'active' : '')
-                      }
-                      onClick={() => setClueValue(v)}
-                      title="Setting clue value closes scoring"
-                    >
-                      {v}
-                    </button>
-                  ))}
-                </div>
-
-                {!clueValueIsSet && (
-                  <div className="gh-help">
-                    <span style={{ color: 'var(--danger)', fontWeight: 800 }}>
-                      Set a clue value before opening scoring.
-                    </span>
+              {allowedValues.length > 0 && (
+                <>
+                  <div style={{ marginTop: 12 }} className="gh-label">
+                    Clue Value
                   </div>
-                )}
-              </>
-            )}
+                  <div className="gh-values">
+                    {allowedValues.map((v) => (
+                      <button
+                        key={v}
+                        className={
+                          'gh-value ' + (s.clueValue === v ? 'active' : '')
+                        }
+                        onClick={() => setClueValue(v)}
+                        title="Setting clue value closes scoring"
+                      >
+                        {v}
+                      </button>
+                    ))}
+                  </div>
 
-            <div style={{ marginTop: 12 }} className="gh-label">
-              Stage Switches
-            </div>
-            <div className="gh-toggleRow">
-              <button
-                className="gh-toggle"
-                onClick={toggleScoring}
-                disabled={!!scoringDisabledReason}
-                title={scoringTitle}
-                aria-disabled={!!scoringDisabledReason}
-                aria-describedby="scoring-lock-hint"
-                style={
-                  scoringDisabledReason
-                    ? { opacity: 0.65, cursor: 'not-allowed' }
-                    : undefined
-                }
-              >
-                <span className="gh-badge">
-                  <span className={'dot ' + (scoringOn ? 'on' : 'off')} />
-                  Scoring
-                </span>
+                  {!clueValueIsSet && (
+                    <div className="gh-help">
+                      <span style={{ color: 'var(--danger)', fontWeight: 800 }}>
+                        Set a clue value before opening scoring.
+                      </span>
+                    </div>
+                  )}
+                </>
+              )}
 
-                <span
-                  className="gh-badge"
-                  style={{ display: 'flex', alignItems: 'center', gap: 10 }}
-                >
-                  {/* progress indicator always visible */}
-                  <span style={{ color: 'var(--muted)', fontWeight: 900 }}>
-                    {scoringEligible > 0
-                      ? `${scoringReceived}/${scoringEligible}`
-                      : '—'}
-                  </span>
-
-                  <span
-                    style={{
-                      color: scoringOn ? 'var(--ok)' : 'var(--danger)',
-                      display: 'inline-flex',
-                      gap: 6,
-                    }}
-                  >
-                    <Icon>{scoringOn ? <ICheck /> : <IX />}</Icon>
-                    {scoringOn ? 'OPEN' : 'CLOSED'}
-                  </span>
-                </span>
-              </button>
-
-              {/* helper text under the toggle (works even if tooltips don’t) */}
-              <div
-                id="scoring-lock-hint"
-                className="gh-help"
-                style={{ marginTop: 6 }}
-              >
-                {scoringCloseBlocked ? (
-                  <span style={{ color: 'var(--muted)' }}>
-                    Scoring will unlock for closing only after all eligible
-                    teams submit scores (<b>{scoringReceived}</b>/
-                    <b>{scoringEligible}</b>).
-                  </span>
-                ) : (
-                  <span style={{ color: 'var(--muted)' }}>
-                    {scoringOn
-                      ? 'Close scoring when everyone has submitted.'
-                      : 'Open scoring to accept proctor submissions.'}
-                  </span>
-                )}
+              <div style={{ marginTop: 12 }} className="gh-label">
+                Stage Switches
               </div>
-
-              {s.phase === 'DIFFICULT' ? (
+              <div className="gh-toggleRow">
                 <button
                   className="gh-toggle"
-                  onClick={() => updateState({ betsOpen: !s.betsOpen })}
+                  onClick={toggleScoring}
+                  disabled={!!scoringDisabledReason}
+                  title={scoringTitle}
+                  aria-disabled={!!scoringDisabledReason}
+                  aria-describedby="scoring-lock-hint"
+                  style={
+                    scoringDisabledReason
+                      ? { opacity: 0.65, cursor: 'not-allowed' }
+                      : undefined
+                  }
                 >
                   <span className="gh-badge">
-                    <span className={'dot ' + (betsOn ? 'on' : 'off')} />
-                    Bets
+                    <span className={'dot ' + (scoringOn ? 'on' : 'off')} />
+                    Scoring
                   </span>
+
                   <span
                     className="gh-badge"
-                    style={{ color: betsOn ? 'var(--ok)' : 'var(--danger)' }}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10 }}
                   >
-                    <Icon>{betsOn ? <ICheck /> : <IX />}</Icon>
-                    {betsOn ? 'OPEN' : 'CLOSED'}
+                    {/* progress indicator always visible */}
+                    <span style={{ color: 'var(--muted)', fontWeight: 800 }}>
+                      {scoringEligible > 0
+                        ? `${scoringReceived}/${scoringEligible}`
+                        : '—'}
+                    </span>
+
+                    <span
+                      style={{
+                        color: scoringOn ? 'var(--ok)' : 'var(--danger)',
+                        display: 'inline-flex',
+                        gap: 6,
+                      }}
+                    >
+                      <Icon>{scoringOn ? <ICheck /> : <IX />}</Icon>
+                      {scoringOn ? 'OPEN' : 'CLOSED'}
+                    </span>
                   </span>
                 </button>
-              ) : (
+
+                {/* helper text under the toggle (works even if tooltips don’t) */}
                 <div
-                  className="gh-toggle"
-                  style={{ opacity: 0.65, cursor: 'not-allowed' }}
+                  id="scoring-lock-hint"
+                  className="gh-help"
+                  style={{ marginTop: 6 }}
                 >
-                  <span className="gh-badge">
-                    <span className="dot" /> Bets
-                  </span>
-                  <span className="gh-badge">DIFFICULT ONLY</span>
+                  {scoringCloseBlocked ? (
+                    <span style={{ color: 'var(--muted)' }}>
+                      Scoring will unlock for closing only after all eligible
+                      teams submit scores (<b>{scoringReceived}</b>/
+                      <b>{scoringEligible}</b>).
+                    </span>
+                  ) : (
+                    <span style={{ color: 'var(--muted)' }}>
+                      {scoringOn
+                        ? 'Close scoring when everyone has submitted.'
+                        : 'Open scoring to accept proctor submissions.'}
+                    </span>
+                  )}
                 </div>
-              )}
+
+                {s.phase === 'DIFFICULT' ? (
+                  <button
+                    className="gh-toggle"
+                    onClick={() => updateState({ betsOpen: !s.betsOpen })}
+                  >
+                    <span className="gh-badge">
+                      <span className={'dot ' + (betsOn ? 'on' : 'off')} />
+                      Bets
+                    </span>
+                    <span
+                      className="gh-badge"
+                      style={{ color: betsOn ? 'var(--ok)' : 'var(--danger)' }}
+                    >
+                      <Icon>{betsOn ? <ICheck /> : <IX />}</Icon>
+                      {betsOn ? 'OPEN' : 'CLOSED'}
+                    </span>
+                  </button>
+                ) : (
+                  <div
+                    className="gh-toggle"
+                    style={{ opacity: 0.65, cursor: 'not-allowed' }}
+                  >
+                    <span className="gh-badge">
+                      <span className="dot" /> Bets
+                    </span>
+                    <span className="gh-badge">DIFFICULT ONLY</span>
+                  </div>
+                )}
+              </div>
+            </div>
+            {/* --- Proctor Scoring Monitor --- */}
+            <div className="gh-card" style={{ marginTop: 12 }}>
+              <h2>Scoring Progress by Proctor</h2>
+
+              <div className="gh-list">
+                {game.proctors.map((p) => {
+                  const eligibleTeams = (
+                    game.scoringTracker?.eligibleTeamIds || []
+                  ).filter((id) => p.teamIds.includes(id))
+
+                  const receivedTeams = (
+                    game.scoringTracker?.receivedTeamIds || []
+                  ).filter((id) => eligibleTeams.includes(id))
+
+                  return (
+                    <div key={p.id} className="gh-item">
+                      {/* Proctor name + progress */}
+                      <div>
+                        <strong>{p.name}</strong>
+                        <div>
+                          <small>
+                            {receivedTeams.length} / {eligibleTeams.length}
+                          </small>
+                        </div>
+                      </div>
+
+                      {/* Team submission pills */}
+                      <div className="gh-pillRow">
+                        {eligibleTeams.map((teamId) => {
+                          const team = game.teams.find((t) => t.id === teamId)
+                          const received = receivedTeams.includes(teamId)
+
+                          return (
+                            <span
+                              key={teamId}
+                              className={`gh-pill ${
+                                received ? 'good' : 'warn'
+                              }`}
+                              title={received ? 'Submitted' : 'Waiting'}
+                            >
+                              <span
+                                className={`dot ${received ? 'on' : 'off'}`}
+                              />
+                              {team?.name ?? teamId}
+                            </span>
+                          )
+                        })}
+
+                        {eligibleTeams.length === 0 && (
+                          <span className="gh-pill">
+                            <span className="dot off" />
+                            No teams
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
 
             <div className="gh-actions">
@@ -844,12 +889,15 @@ export default function Controller() {
               <button
                 className="gh-btn primary"
                 onClick={startTieBreaker}
-                disabled={!tieBreakActive}
-                title="Switches phase to TIE_BREAKER, opens scoring, and creates a new tie-break clue"
+                disabled={!canStartTieBreak}
+                title={
+                  !game.state.postFinal
+                    ? 'Finish the final round first'
+                    : !game.clincher?.needed
+                    ? 'No tie for highest score'
+                    : 'Start tie-break'
+                }
               >
-                <Icon>
-                  <IBolt />
-                </Icon>
                 Start Tie-break
               </button>
 

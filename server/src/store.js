@@ -10,6 +10,28 @@ const PHASES = {
   TIE_BREAKER: 'TIE_BREAKER', // Clincher
 }
 
+const PHASE_MAX_CLUES = {
+  [PHASES.EASY]: 20,
+  [PHASES.AVERAGE]: 20,
+  [PHASES.DIFFICULT]: 5, // Final round
+  [PHASES.TIE_BREAKER]: 999, // not used for auto progress
+}
+
+const PHASE_ORDER = [PHASES.EASY, PHASES.AVERAGE, PHASES.DIFFICULT]
+
+function nextPhase(phase) {
+  const idx = PHASE_ORDER.indexOf(phase)
+  if (idx === -1) return null
+  return PHASE_ORDER[idx + 1] || null
+}
+
+function clampClueNumberForPhase(phase, n) {
+  const max = PHASE_MAX_CLUES[phase] ?? 20
+  if (n < 1) return 1
+  if (n > max) return max
+  return n
+}
+
 const ROUND_PRESETS = {
   [PHASES.EASY]: { seconds: 10, allowedValues: [10, 20, 30, 40] },
   [PHASES.AVERAGE]: { seconds: 15, allowedValues: [20, 40, 60, 80] },
@@ -55,6 +77,7 @@ function makeInitialGame() {
       scoringOpen: true,
       seconds: ROUND_PRESETS[PHASES.EASY].seconds,
       betsOpen: false,
+      postFinal: false,
     },
 
     tieBreaker: {
@@ -98,6 +121,7 @@ function makeInitialGame() {
       eligibleTeamIds: [],
       submittedTeamIds: [],
     },
+    postFinal: false,
   }
 }
 
@@ -127,10 +151,19 @@ function getPhaseClueKey() {
   return `${s.phase}:${s.clueNumber}`
 }
 
-function markScored(teamId) {
+function markScored({ teamId, result, proctorId }) {
   const key = getPhaseClueKey()
   if (!store.game.scoreReceipts[key]) store.game.scoreReceipts[key] = {}
-  store.game.scoreReceipts[key][teamId] = true
+  store.game.scoreReceipts[key][teamId] = {
+    result,          // "correct" | "wrong" | "no_answer"
+    proctorId,       // "p1" etc
+    ts: Date.now(),
+  }
+}
+
+function getScoreReceipt(teamId) {
+  const key = getPhaseClueKey()
+  return store.game.scoreReceipts[key]?.[teamId] || null
 }
 
 function hasScored(teamId) {
@@ -214,6 +247,13 @@ function startBetTracker() {
   }
 }
 
+function allScoresReceivedServer() {
+  const tr = store.game.scoringTracker
+  const eligible = tr?.eligibleTeamIds || []
+  const received = tr?.receivedTeamIds || []
+  return eligible.length > 0 && received.length === eligible.length
+}
+
 function recomputeDerived() {
   // ---------- LEADERBOARD ----------
   const sorted = [...store.game.teams].sort((a, b) => b.score - a.score)
@@ -287,6 +327,9 @@ function setPhase(phase) {
     store.game.state.scoringOpen = false
     store.game.bets = {}
   }
+
+  store.game.state.postFinal = false
+  store.game.state.clueNumber = 1
 
   // Reset trackers on phase change
   resetTrackers()
@@ -366,36 +409,13 @@ export function updateGameState(partial) {
   const prevScoringOpen = !!s.scoringOpen
   const prevBetsOpen = !!s.betsOpen
 
-  // phase change
-  if (partial.phase && partial.phase !== s.phase) {
-    setPhase(partial.phase)
-  }
+  // ---------------------------
+  // IMMUTABLE FIELDS (GM cannot set these)
+  // Ignore: partial.phase, partial.clueNumber
+  // ---------------------------
 
+  // Category (roundLabel) is still GM-controlled
   if (typeof partial.roundLabel === 'string') s.roundLabel = partial.roundLabel
-  if (typeof partial.clueNumber === 'number' && partial.clueNumber >= 1) {
-    s.clueNumber = partial.clueNumber
-  }
-
-  // scoringOpen (GM toggle)
-  if (typeof partial.scoringOpen === 'boolean') {
-    const next = partial.scoringOpen
-
-    // If trying to CLOSE scoring while it's currently OPEN:
-    if (s.scoringOpen && next === false) {
-      const tr = store.game.scoringTracker
-      const eligible = tr?.eligibleTeamIds || []
-      const received = tr?.receivedTeamIds || []
-
-      // Only enforce when there are eligible teams
-      if (eligible.length && received.length < eligible.length) {
-        throw new Error(
-          `Cannot close scoring: waiting for all scores (${received.length}/${eligible.length}).`
-        )
-      }
-    }
-
-    s.scoringOpen = next
-  }
 
   // clueValue only meaningful for EASY/AVERAGE
   if (typeof partial.clueValue === 'number') {
@@ -409,11 +429,31 @@ export function updateGameState(partial) {
     s.clueValue = partial.clueValue
   }
 
-  if (typeof partial.betsOpen === 'boolean') {
-    if (store.game.state.phase !== PHASES.DIFFICULT && partial.betsOpen) {
-      throw new Error('betsOpen can only be enabled in DIFFICULT phase.')
+  // scoringOpen (GM toggle) with enforcement + auto progress
+  if (typeof partial.scoringOpen === 'boolean') {
+    const next = partial.scoringOpen
+
+    // If trying to CLOSE scoring while it's currently OPEN:
+    if (s.scoringOpen && next === false) {
+      const tr = store.game.scoringTracker
+      const eligible = tr?.eligibleTeamIds || []
+      const received = tr?.receivedTeamIds || []
+
+      // If tracker isn't initialized / no eligible teams, do NOT auto-progress.
+      // (Prevents EASY 1 from jumping when you just set clue value.)
+      if (eligible.length > 0) {
+        if (received.length < eligible.length) {
+          throw new Error(
+            `Cannot close scoring: waiting for all scores (${received.length}/${eligible.length}).`
+          )
+        }
+
+        // Auto-progress ONLY after successful close AND only when there were eligible teams
+        autoProgressAfterClose()
+      }
     }
-    store.game.state.betsOpen = partial.betsOpen
+
+    s.scoringOpen = next
   }
 
   // If clue/phase changed (after updates), reset trackers
@@ -434,6 +474,40 @@ export function updateGameState(partial) {
   clearReceiptsForNewClueOrPhase(prevPhase, prevClue)
 
   recomputeDerived()
+
+  // ---------------------------
+  // Helpers
+  // ---------------------------
+  function autoProgressAfterClose() {
+    // Don’t auto-progress in tie-breaker
+    if (s.phase === PHASES.TIE_BREAKER) return
+
+    // If post-final already done, do nothing
+    if (s.postFinal) return
+
+    const max = PHASE_MAX_CLUES[s.phase] ?? 20
+
+    // Still clues left in this phase
+    if (s.clueNumber < max) {
+      s.clueNumber += 1
+      s.clueNumber = clampClueNumberForPhase(s.phase, s.clueNumber)
+      return
+    }
+
+    // Phase is finished (we just closed scoring on the last clue)
+    const np = nextPhase(s.phase)
+
+    if (np) {
+      setPhase(np) // updates seconds, closes bets, etc.
+      s.clueNumber = 1 // reset for new phase
+      s.postFinal = false
+      return
+    }
+
+    // No next phase means we finished DIFFICULT (final round)
+    s.postFinal = true
+    // Leave phase as DIFFICULT; tie-break is now allowed if clincher needed
+  }
 }
 
 /* ---------------- Difficult (bets) ---------------- */
