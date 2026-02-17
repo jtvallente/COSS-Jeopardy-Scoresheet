@@ -398,14 +398,14 @@ function Sidebar() {
         <div className="sb-section">Proctors</div>
         <nav className="sb-nav sb-proctors">
           {[
-            'Aze',
+            'Jorge',
             'Chloe',
             'Dal',
-            'Denmark',
-            'Dirk',
+            'Jere',
+            'Julian',
             'Duane',
-            'Jonz',
-            'JZ',
+            'Aze',
+            'Denmark',
           ].map((name, i) => (
             <NavLink
               key={name}

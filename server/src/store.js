@@ -19,7 +19,7 @@ const PHASES = {
   }
   
   function makeProctors() {
-    const names = ['Aze', 'Chloe', 'Dal', 'Denmark', 'Dirk', 'Duane', 'Jonz', 'JZ']
+    const names = ['Jorge', 'Chloe', 'Dal', 'Jere', 'Julian', 'Duane', 'Aze', 'Denmark']
   
     return names.map((name, i) => ({
       id: `p${i + 1}`,
