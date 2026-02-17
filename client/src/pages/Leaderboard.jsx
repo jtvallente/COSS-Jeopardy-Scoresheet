@@ -17,24 +17,33 @@ const IFlag = () => (
 )
 
 const IHash = () => (
-    <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
-      <path d="M6.57 1.5a.75.75 0 0 1 .75.9L6.93 4.5h2.64l.4-2.1a.75.75 0 1 1 1.47.28L11.07 4.5h2.18a.75.75 0 0 1 0 1.5h-2.47l-.5 2.6h2.22a.75.75 0 0 1 0 1.5h-2.5l-.4 2.1a.75.75 0 1 1-1.47-.28l.35-1.82H6.83l-.4 2.1a.75.75 0 1 1-1.47-.28l.35-1.82H3.25a.75.75 0 0 1 0-1.5h2.35l.5-2.6H3.5a.75.75 0 0 1 0-1.5h2.89l.4-2.1a.75.75 0 0 1 .78-.9ZM7.6 6l-.5 2.6h2.64l.5-2.6H7.6Z" />
-    </svg>
-  )
-  const ITrophy = () => (
-    <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
-      <path d="M4 1.75A.75.75 0 0 1 4.75 1h6.5a.75.75 0 0 1 .75.75V3h1.25A.75.75 0 0 1 14 3.75v1A3.25 3.25 0 0 1 11.1 8a4.5 4.5 0 0 1-2.35 2.03V12h2.25a.75.75 0 0 1 0 1.5H5a.75.75 0 0 1 0-1.5h2.25V10.03A4.5 4.5 0 0 1 4.9 8 3.25 3.25 0 0 1 2 4.75v-1A.75.75 0 0 1 2.75 3H4V1.75ZM12 4.5v.25A1.75 1.75 0 0 1 10.25 6.5h-.2c.3-.53.47-1.14.47-1.79V4.5H12ZM4 4.5h1.48v.21c0 .65.17 1.26.47 1.79h-.2A1.75 1.75 0 0 1 4 4.75V4.5Z" />
-    </svg>
-  )
+  <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
+    <path d="M6.57 1.5a.75.75 0 0 1 .75.9L6.93 4.5h2.64l.4-2.1a.75.75 0 1 1 1.47.28L11.07 4.5h2.18a.75.75 0 0 1 0 1.5h-2.47l-.5 2.6h2.22a.75.75 0 0 1 0 1.5h-2.5l-.4 2.1a.75.75 0 1 1-1.47-.28l.35-1.82H6.83l-.4 2.1a.75.75 0 1 1-1.47-.28l.35-1.82H3.25a.75.75 0 0 1 0-1.5h2.35l.5-2.6H3.5a.75.75 0 0 1 0-1.5h2.89l.4-2.1a.75.75 0 0 1 .78-.9ZM7.6 6l-.5 2.6h2.64l.5-2.6H7.6Z" />
+  </svg>
+)
+const ITrophy = () => (
+  <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
+    <path d="M4 1.75A.75.75 0 0 1 4.75 1h6.5a.75.75 0 0 1 .75.75V3h1.25A.75.75 0 0 1 14 3.75v1A3.25 3.25 0 0 1 11.1 8a4.5 4.5 0 0 1-2.35 2.03V12h2.25a.75.75 0 0 1 0 1.5H5a.75.75 0 0 1 0-1.5h2.25V10.03A4.5 4.5 0 0 1 4.9 8 3.25 3.25 0 0 1 2 4.75v-1A.75.75 0 0 1 2.75 3H4V1.75ZM12 4.5v.25A1.75 1.75 0 0 1 10.25 6.5h-.2c.3-.53.47-1.14.47-1.79V4.5H12ZM4 4.5h1.48v.21c0 .65.17 1.26.47 1.79h-.2A1.75 1.75 0 0 1 4 4.75V4.5Z" />
+  </svg>
+)
 
 export default function Leaderboard() {
   const { game } = useGame()
   const [showTop10, setShowTop10] = useState(false)
 
   const phase = game.state.phase
-  const rows = useMemo(() => game.leaderboard || [], [game.leaderboard])
+  const rows = useMemo(() => {
+    const teams = game.teams || []
+    return [...teams]
+      .sort((a, b) => (b.score || 0) - (a.score || 0))
+      .map((t) => ({
+        id: t.id,
+        name: t.name,
+        score: t.score,
+        eliminated: t.eliminated,
+      }))
+  }, [game.teams])
 
-  // ✅ LOGIC UNCHANGED (this matches your original rules)
   function statusOf(t) {
     if (t.eliminated) return { label: 'ELIM', tone: 'bad' }
     if (phase === 'DIFFICULT' && t.score <= 0)
@@ -340,7 +349,7 @@ export default function Leaderboard() {
           <div>
             <h1 className="title">LEADERBOARD</h1>
             <div className="gh-meta">
-            <span className="gh-chip">
+              <span className="gh-chip">
                 <Icon>
                   <ITrophy />
                 </Icon>{' '}
@@ -353,11 +362,11 @@ export default function Leaderboard() {
                 Phase: <b>{phase}</b>
               </span>
               <span className="gh-chip">
-              <Icon>
-                <IHash />
-              </Icon>{' '}
-              Clue: <b>{game.state.clueNumber}</b>
-            </span>
+                <Icon>
+                  <IHash />
+                </Icon>{' '}
+                Clue: <b>{game.state.clueNumber}</b>
+              </span>
             </div>
           </div>
 

@@ -740,13 +740,14 @@ export default function Proctor() {
         <div className="section">
           <h2 className="sectionTitle">Clincher Candidates</h2>
 
-          {(inTieBreaker ? tieIds.length > 0 : game.clincher.needed) ? (
+          {game.clincher?.needed &&
+          (game.clincher?.tiedTeamIds || []).length > 0 ? (
             <div className="clincherRow">
-              {tieIds.map((id) => {
+              {(game.clincher.tiedTeamIds || []).map((id) => {
                 const team = game.teams.find((t) => t.id === id)
                 return (
                   <span className="teamChip" key={id}>
-                    {team ? team.name : id}
+                    {team?.name ?? id}
                   </span>
                 )
               })}

@@ -3,13 +3,11 @@ import { useMemo, useState } from 'react'
 import { useGame } from '../useGame'
 import {
   resetGame,
-  undo,
   updateState,
   tbFinalize,
   tbNewClue,
   tbResolve,
-  saveSnapshot,
-  loadSnapshot,
+
 } from '../api'
 
 /* ---------------- Minimal GitHub-ish Icons ---------------- */
@@ -172,8 +170,21 @@ export default function Controller() {
   const scoringEligible = (game.scoringTracker?.eligibleTeamIds || []).length
   const scoringReceived = (game.scoringTracker?.receivedTeamIds || []).length
 
+  const allScoresReceived =
+    scoringEligible > 0 && scoringReceived === scoringEligible
+
+  const scoringCloseBlocked = scoringOn && !allScoresReceived
+
   const betEligible = (game.betTracker?.eligibleTeamIds || []).length
   const betSubmitted = (game.betTracker?.submittedTeamIds || []).length
+
+  const scoringDisabledReason = scoringToggleDisabledReason
+    ? scoringToggleDisabledReason
+    : scoringCloseBlocked
+    ? `Scoring can only be closed after all scores are received (${scoringReceived}/${scoringEligible}).`
+    : null
+
+  const scoringTitle = scoringDisabledReason || 'Toggle scoring'
 
   async function startTieBreaker() {
     await updateState({
@@ -195,47 +206,47 @@ export default function Controller() {
   }
 
   //persistence
-  const [snapshotMsg, setSnapshotMsg] = useState('')
-  const [snapshotBusy, setSnapshotBusy] = useState(false)
+// const [snapshotMsg, setSnapshotMsg] = useState('')
+  // const [snapshotBusy, setSnapshotBusy] = useState(false)
 
-  function flashSnapshotMsg(text) {
-    setSnapshotMsg(text)
-    setTimeout(() => setSnapshotMsg(''), 2500)
-  }
+  // function flashSnapshotMsg(text) {
+  //   setSnapshotMsg(text)
+  //   setTimeout(() => setSnapshotMsg(''), 2500)
+  // }
 
-  async function doSaveSnapshot() {
-    try {
-      setSnapshotBusy(true)
-      const data = await saveSnapshot()
-      if (!data.ok)
-        return flashSnapshotMsg(`Save failed: ${data.error || 'Unknown error'}`)
-      flashSnapshotMsg('Snapshot saved')
-    } catch (e) {
-      flashSnapshotMsg(`Save failed: ${e.message}`)
-    } finally {
-      setSnapshotBusy(false)
-    }
-  }
+  // async function doSaveSnapshot() {
+  //   try {
+  //     setSnapshotBusy(true)
+  //     const data = await saveSnapshot()
+  //     if (!data.ok)
+  //       return flashSnapshotMsg(`Save failed: ${data.error || 'Unknown error'}`)
+  //     flashSnapshotMsg('Snapshot saved')
+  //   } catch (e) {
+  //     flashSnapshotMsg(`Save failed: ${e.message}`)
+  //   } finally {
+  //     setSnapshotBusy(false)
+  //   }
+  // }
 
-  async function doLoadSnapshot() {
-    // strong guard: restore is scary
-    const yes = window.confirm(
-      'Restore snapshot?\n\nThis will REPLACE the current game state with the last saved snapshot.'
-    )
-    if (!yes) return
+  // async function doLoadSnapshot() {
+  //   // strong guard: restore is scary
+  //   const yes = window.confirm(
+  //     'Restore snapshot?\n\nThis will REPLACE the current game state with the last saved snapshot.'
+  //   )
+  //   if (!yes) return
 
-    try {
-      setSnapshotBusy(true)
-      const data = await loadSnapshot()
-      if (!data.ok)
-        return flashSnapshotMsg(`Load failed: ${data.error || 'Unknown error'}`)
-      flashSnapshotMsg('Snapshot restored')
-    } catch (e) {
-      flashSnapshotMsg(`Load failed: ${e.message}`)
-    } finally {
-      setSnapshotBusy(false)
-    }
-  }
+  //   try {
+  //     setSnapshotBusy(true)
+  //     const data = await loadSnapshot()
+  //     if (!data.ok)
+  //       return flashSnapshotMsg(`Load failed: ${data.error || 'Unknown error'}`)
+  //     flashSnapshotMsg('Snapshot restored')
+  //   } catch (e) {
+  //     flashSnapshotMsg(`Load failed: ${e.message}`)
+  //   } finally {
+  //     setSnapshotBusy(false)
+  //   }
+  // }
 
   return (
     <div className="gh-page">
@@ -543,7 +554,7 @@ export default function Controller() {
               </div>
 
               <div className="gh-field">
-                <div className="gh-label">Round Label</div>
+                <div className="gh-label">Category</div>
                 <select
                   className="gh-select"
                   value={s.roundLabel}
@@ -627,10 +638,12 @@ export default function Controller() {
               <button
                 className="gh-toggle"
                 onClick={toggleScoring}
-                disabled={!!scoringToggleDisabledReason}
-                title={scoringToggleDisabledReason || 'Toggle scoring'}
+                disabled={!!scoringDisabledReason}
+                title={scoringTitle}
+                aria-disabled={!!scoringDisabledReason}
+                aria-describedby="scoring-lock-hint"
                 style={
-                  scoringToggleDisabledReason
+                  scoringDisabledReason
                     ? { opacity: 0.65, cursor: 'not-allowed' }
                     : undefined
                 }
@@ -639,14 +652,51 @@ export default function Controller() {
                   <span className={'dot ' + (scoringOn ? 'on' : 'off')} />
                   Scoring
                 </span>
+
                 <span
                   className="gh-badge"
-                  style={{ color: scoringOn ? 'var(--ok)' : 'var(--danger)' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10 }}
                 >
-                  <Icon>{scoringOn ? <ICheck /> : <IX />}</Icon>
-                  {scoringOn ? 'OPEN' : 'CLOSED'}
+                  {/* progress indicator always visible */}
+                  <span style={{ color: 'var(--muted)', fontWeight: 900 }}>
+                    {scoringEligible > 0
+                      ? `${scoringReceived}/${scoringEligible}`
+                      : '—'}
+                  </span>
+
+                  <span
+                    style={{
+                      color: scoringOn ? 'var(--ok)' : 'var(--danger)',
+                      display: 'inline-flex',
+                      gap: 6,
+                    }}
+                  >
+                    <Icon>{scoringOn ? <ICheck /> : <IX />}</Icon>
+                    {scoringOn ? 'OPEN' : 'CLOSED'}
+                  </span>
                 </span>
               </button>
+
+              {/* helper text under the toggle (works even if tooltips don’t) */}
+              <div
+                id="scoring-lock-hint"
+                className="gh-help"
+                style={{ marginTop: 6 }}
+              >
+                {scoringCloseBlocked ? (
+                  <span style={{ color: 'var(--muted)' }}>
+                    Scoring will unlock for closing only after all eligible
+                    teams submit scores (<b>{scoringReceived}</b>/
+                    <b>{scoringEligible}</b>).
+                  </span>
+                ) : (
+                  <span style={{ color: 'var(--muted)' }}>
+                    {scoringOn
+                      ? 'Close scoring when everyone has submitted.'
+                      : 'Open scoring to accept proctor submissions.'}
+                  </span>
+                )}
+              </div>
 
               {s.phase === 'DIFFICULT' ? (
                 <button
@@ -679,7 +729,7 @@ export default function Controller() {
             </div>
 
             <div className="gh-actions">
-              <button className="gh-btn" onClick={() => undo()}>
+              {/* <button className="gh-btn" onClick={() => undo()}>
                 <Icon>
                   <IUndo />
                 </Icon>{' '}
@@ -708,7 +758,7 @@ export default function Controller() {
                   <IClock />
                 </Icon>
                 {snapshotBusy ? 'Loading…' : 'Restore Snapshot'}
-              </button>
+              </button> */}
 
               <button
                 className="gh-btn danger"
@@ -722,11 +772,11 @@ export default function Controller() {
               </button>
             </div>
 
-            {snapshotMsg && (
+            {/* {snapshotMsg && (
               <div className="gh-help" style={{ marginTop: 8 }}>
                 <span style={{ fontWeight: 800 }}>{snapshotMsg}</span>
               </div>
-            )}
+            )} */}
           </div>
 
           {/* RIGHT */}
