@@ -5,6 +5,9 @@ import express from 'express'
 import cors from 'cors'
 import http from 'http'
 import { Server as SocketIOServer } from 'socket.io'
+import path from "path"
+import { fileURLToPath } from "url"
+import { createGamePersister } from "./persist.js"
 
 import {
   store,
@@ -44,6 +47,33 @@ app.use(express.json())
 const GAME_ID = process.env.GAME_ID || 'JPD2026'
 console.log('SERVER GAME_ID =', GAME_ID)
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Save file lives on GM laptop here:
+const SAVE_PATH = path.join(__dirname, "../data/game.snapshot.json");
+
+const persister = createGamePersister({
+  filePath: SAVE_PATH,
+  getGame: () => store.game,
+});
+
+// Try load on boot:
+(async () => {
+  try {
+    const loaded = await persister.load();
+    if (loaded.ok) {
+      store.game = loaded.game;
+      console.log("[PERSIST] Loaded saved game from:", SAVE_PATH);
+    } else {
+      console.log("[PERSIST] No saved game loaded:", loaded.reason);
+    }
+  } catch (e) {
+    console.error("[PERSIST] Load failed:", e);
+  }
+})();
+
+
 // ---------------- Game ID gate (REST) ----------------
 function requireGameId(req, res, next) {
   if (req.path === '/api/health') return next()
@@ -70,8 +100,10 @@ const server = http.createServer(app)
 const io = new SocketIOServer(server, { cors: { origin: '*' } })
 
 function broadcast() {
-  io.emit('game:update', store.game)
+  io.emit("game:update", store.game);
+  persister.scheduleSave(200); // autosave after every change (debounced)
 }
+
 
 // Game ID gate (Socket)
 io.use((socket, next) => {
@@ -89,6 +121,33 @@ app.get('/api/health', (req, res) => res.json({ ok: true }))
 
 // ---------------- Game ----------------
 app.get('/api/game', (req, res) => res.json({ ok: true, game: store.game }))
+
+app.get("/api/game/persist-status", (req, res) => {
+  res.json({ ok: true, ...persister.getStatus() });
+});
+
+app.post("/api/game/save", async (req, res) => {
+  try {
+    await persister.saveNow();
+    res.json({ ok: true, savedTo: persister.getStatus().filePath });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+app.post("/api/game/load", async (req, res) => {
+  try {
+    const loaded = await persister.load();
+    if (!loaded.ok) {
+      return res.status(400).json({ ok: false, error: loaded.reason });
+    }
+    store.game = loaded.game;
+    broadcast();
+    res.json({ ok: true, game: store.game });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
 
 app.post('/api/game/reset', (req, res) => {
   resetGame()

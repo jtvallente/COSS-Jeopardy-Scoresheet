@@ -83,3 +83,7 @@ export const tbResolve = (teamId) => post("/tiebreaker/resolve", { teamId });
 // Utility
 export const resetGame = () => post("/game/reset");
 export const undo = () => post("/undo");
+
+
+export const saveSnapshot = () => post("/game/save");
+export const loadSnapshot = () => post("/game/load");

@@ -325,7 +325,7 @@ export default function Join() {
         {/* LOGO + TITLE */}
         <div className="brand-stack">
           <img
-            src="https://scontent.fdvo2-2.fna.fbcdn.net/v/t39.30808-6/617414986_897207706001715_5952680201901177609_n.jpg?_nc_cat=111&ccb=1-7&_nc_sid=6ee11a&_nc_ohc=wIcK7oBeduoQ7kNvwGarsts&_nc_oc=AdnsHecgGf84CRccAAgPvJ2VkEkNus196u8oJf6YpjbiEZ19CTzo1VUG-njPL4YwmTg&_nc_zt=23&_nc_ht=scontent.fdvo2-2.fna&_nc_gid=3F38v9l2bHDXTekIANn0OA&oh=00_AftnZUfVEy-3zEeikqC3a11pCtl-7cTemlWBfEBNsPUdGw&oe=69854B03"
+            src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT-D9hy5MEseYSh7JJCVH-9C3DFFSVDMubJ4w&s"
             alt="COSS Logo"
             className="brand-logo"
           />

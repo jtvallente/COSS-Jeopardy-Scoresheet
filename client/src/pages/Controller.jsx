@@ -8,6 +8,8 @@ import {
   tbFinalize,
   tbNewClue,
   tbResolve,
+  saveSnapshot,
+  loadSnapshot,
 } from '../api'
 
 /* ---------------- Minimal GitHub-ish Icons ---------------- */
@@ -90,107 +92,150 @@ const ICurrencyDollar = () => (
 /* ---------------- Data ---------------- */
 
 const PHASES = [
-    { key: 'EASY', label: 'Easy' },
-    { key: 'AVERAGE', label: 'Average' },
-    { key: 'DIFFICULT', label: 'Difficult' },
-    { key: 'JACKPOT', label: 'Jackpot' },
-    { key: 'TIE_BREAKER', label: 'Tie-breaker' },
-  ]
-  
-  const ROUND_LABELS = ['VIDEO GAMES', 'MUSIC', 'TECH', 'ANIME', 'MEMES']
-  
-  export default function Controller() {
-    const { game } = useGame()
-    const s = game.state
-    const tb = game.tieBreaker
-  
-    const [confirmReset, setConfirmReset] = useState(false)
-    const [clueDraft, setClueDraft] = useState(() => String(s.clueNumber ?? 1))
-  
-    const clueIsDirty = clueDraft !== String(s.clueNumber ?? 1)
-  
-    const clincherTeams = useMemo(() => {
-      return (game.clincher.tiedTeamIds || [])
-        .map((id) => game.teams.find((t) => t.id === id))
-        .filter(Boolean)
-    }, [game])
-  
-    const allowedValues = useMemo(() => {
-      if (s.phase === 'EASY') return [10, 20, 30, 40]
-      if (s.phase === 'AVERAGE') return [20, 40, 60, 80]
-      return []
-    }, [s.phase])
-  
-    const clueValueRequired = s.phase === 'EASY' || s.phase === 'AVERAGE'
-    const clueValueIsSet =
-      !clueValueRequired ||
-      (Number.isFinite(Number(s.clueValue)) && Number(s.clueValue) > 0)
-  
-    const scoringToggleDisabledReason =
-      clueValueRequired && !clueValueIsSet ? 'Set a clue value first' : null
-  
-    function commitClueDraft() {
-      const trimmed = clueDraft.trim()
-      if (!trimmed) {
-        setClueDraft(String(s.clueNumber ?? 1))
-        return
-      }
-  
-      const n = Number(trimmed)
-      if (!Number.isFinite(n) || n < 1) {
-        setClueDraft(String(s.clueNumber ?? 1))
-        return
-      }
-  
-      updateState({ clueNumber: n, scoringOpen: false })
+  { key: 'EASY', label: 'Easy' },
+  { key: 'AVERAGE', label: 'Average' },
+  { key: 'DIFFICULT', label: 'Difficult' },
+  { key: 'JACKPOT', label: 'Jackpot' },
+  { key: 'TIE_BREAKER', label: 'Tie-breaker' },
+]
+
+const ROUND_LABELS = ['VIDEO GAMES', 'MUSIC', 'TECH', 'ANIME', 'MEMES']
+
+export default function Controller() {
+  const { game } = useGame()
+  const s = game.state
+  const tb = game.tieBreaker
+
+  const [confirmReset, setConfirmReset] = useState(false)
+  const [clueDraft, setClueDraft] = useState(() => String(s.clueNumber ?? 1))
+
+  const clueIsDirty = clueDraft !== String(s.clueNumber ?? 1)
+
+  const clincherTeams = useMemo(() => {
+    return (game.clincher.tiedTeamIds || [])
+      .map((id) => game.teams.find((t) => t.id === id))
+      .filter(Boolean)
+  }, [game])
+
+  const allowedValues = useMemo(() => {
+    if (s.phase === 'EASY') return [10, 20, 30, 40]
+    if (s.phase === 'AVERAGE') return [20, 40, 60, 80]
+    return []
+  }, [s.phase])
+
+  const clueValueRequired = s.phase === 'EASY' || s.phase === 'AVERAGE'
+  const clueValueIsSet =
+    !clueValueRequired ||
+    (Number.isFinite(Number(s.clueValue)) && Number(s.clueValue) > 0)
+
+  const scoringToggleDisabledReason =
+    clueValueRequired && !clueValueIsSet ? 'Set a clue value first' : null
+
+  function commitClueDraft() {
+    const trimmed = clueDraft.trim()
+    if (!trimmed) {
+      setClueDraft(String(s.clueNumber ?? 1))
+      return
     }
-  
-    async function doReset() {
-      if (!confirmReset) {
-        setConfirmReset(true)
-        setTimeout(() => setConfirmReset(false), 2500)
-        return
-      }
-      await resetGame()
-      setConfirmReset(false)
+
+    const n = Number(trimmed)
+    if (!Number.isFinite(n) || n < 1) {
+      setClueDraft(String(s.clueNumber ?? 1))
+      return
     }
-  
-    const scoringOn = !!s.scoringOpen
-    const betsOn = !!s.betsOpen
-  
-    const clincherNeeded = !!game.clincher?.needed
-    const isTieBreakerPhase = s.phase === 'TIE_BREAKER'
-    const tieBreakActive = clincherNeeded || isTieBreakerPhase
-  
-    const submissionsCount = (tb?.submissions || []).length
-    const canFinalize = isTieBreakerPhase && submissionsCount > 0
-    const canResolve = !!tb?.conflict && submissionsCount > 0
-  
-    // ---- NEW: progress metrics (server provides these) ----
-    const scoringEligible = (game.scoringTracker?.eligibleTeamIds || []).length
-    const scoringReceived = (game.scoringTracker?.receivedTeamIds || []).length
-  
-    const betEligible = (game.betTracker?.eligibleTeamIds || []).length
-    const betSubmitted = (game.betTracker?.submittedTeamIds || []).length
-  
-    async function startTieBreaker() {
-      await updateState({
-        phase: 'TIE_BREAKER',
-        roundLabel: 'TIE BREAKER',
-        scoringOpen: true,
-        betsOpen: false,
-      })
-      await tbNewClue()
+
+    updateState({ clueNumber: n, scoringOpen: false })
+  }
+
+  async function doReset() {
+    if (!confirmReset) {
+      setConfirmReset(true)
+      setTimeout(() => setConfirmReset(false), 2500)
+      return
     }
-  
-    async function setClueValue(v) {
-      await updateState({ clueValue: v, scoringOpen: false })
+    await resetGame()
+    setConfirmReset(false)
+  }
+
+  const scoringOn = !!s.scoringOpen
+  const betsOn = !!s.betsOpen
+
+  const clincherNeeded = !!game.clincher?.needed
+  const isTieBreakerPhase = s.phase === 'TIE_BREAKER'
+  const tieBreakActive = clincherNeeded || isTieBreakerPhase
+
+  const submissionsCount = (tb?.submissions || []).length
+  const canFinalize = isTieBreakerPhase && submissionsCount > 0
+  const canResolve = !!tb?.conflict && submissionsCount > 0
+
+  // ---- NEW: progress metrics (server provides these) ----
+  const scoringEligible = (game.scoringTracker?.eligibleTeamIds || []).length
+  const scoringReceived = (game.scoringTracker?.receivedTeamIds || []).length
+
+  const betEligible = (game.betTracker?.eligibleTeamIds || []).length
+  const betSubmitted = (game.betTracker?.submittedTeamIds || []).length
+
+  async function startTieBreaker() {
+    await updateState({
+      phase: 'TIE_BREAKER',
+      roundLabel: 'TIE BREAKER',
+      scoringOpen: true,
+      betsOpen: false,
+    })
+    await tbNewClue()
+  }
+
+  async function setClueValue(v) {
+    await updateState({ clueValue: v, scoringOpen: false })
+  }
+
+  async function toggleScoring() {
+    if (clueValueRequired && !clueValueIsSet) return
+    await updateState({ scoringOpen: !s.scoringOpen })
+  }
+
+  //persistence
+  const [snapshotMsg, setSnapshotMsg] = useState('')
+  const [snapshotBusy, setSnapshotBusy] = useState(false)
+
+  function flashSnapshotMsg(text) {
+    setSnapshotMsg(text)
+    setTimeout(() => setSnapshotMsg(''), 2500)
+  }
+
+  async function doSaveSnapshot() {
+    try {
+      setSnapshotBusy(true)
+      const data = await saveSnapshot()
+      if (!data.ok)
+        return flashSnapshotMsg(`Save failed: ${data.error || 'Unknown error'}`)
+      flashSnapshotMsg('Snapshot saved')
+    } catch (e) {
+      flashSnapshotMsg(`Save failed: ${e.message}`)
+    } finally {
+      setSnapshotBusy(false)
     }
-  
-    async function toggleScoring() {
-      if (clueValueRequired && !clueValueIsSet) return
-      await updateState({ scoringOpen: !s.scoringOpen })
+  }
+
+  async function doLoadSnapshot() {
+    // strong guard: restore is scary
+    const yes = window.confirm(
+      'Restore snapshot?\n\nThis will REPLACE the current game state with the last saved snapshot.'
+    )
+    if (!yes) return
+
+    try {
+      setSnapshotBusy(true)
+      const data = await loadSnapshot()
+      if (!data.ok)
+        return flashSnapshotMsg(`Load failed: ${data.error || 'Unknown error'}`)
+      flashSnapshotMsg('Snapshot restored')
+    } catch (e) {
+      flashSnapshotMsg(`Load failed: ${e.message}`)
+    } finally {
+      setSnapshotBusy(false)
     }
+  }
 
   return (
     <div className="gh-page">
@@ -349,11 +394,13 @@ const PHASES = [
         }
       `}</style>
 
-<div className="gh-wrap">
+      <div className="gh-wrap">
         <div className="gh-header">
           <div>
             <div className="gh-title">CONTROLLER • GAME MASTER</div>
-            <div className="gh-sub">Control panel. Updates live to proctors.</div>
+            <div className="gh-sub">
+              Control panel. Updates live to proctors.
+            </div>
           </div>
         </div>
 
@@ -363,11 +410,16 @@ const PHASES = [
             <div className="gh-overview">
               <div className="gh-overviewTop">
                 <div className="gh-overviewTitle">
-                  <Icon><IFlag /></Icon> Round Overview
+                  <Icon>
+                    <IFlag />
+                  </Icon>{' '}
+                  Round Overview
                 </div>
 
                 <div className="gh-pillRow">
-                  <span className={'gh-pill ' + (s.scoringOpen ? 'good' : 'bad')}>
+                  <span
+                    className={'gh-pill ' + (s.scoringOpen ? 'good' : 'bad')}
+                  >
                     <span className={'dot ' + (s.scoringOpen ? 'on' : 'off')} />
                     Scoring {s.scoringOpen ? 'Open' : 'Closed'}
                   </span>
@@ -381,7 +433,9 @@ const PHASES = [
 
               <div className="gh-overviewGrid">
                 <div className="gh-stat">
-                  <Icon><IFlag /></Icon>
+                  <Icon>
+                    <IFlag />
+                  </Icon>
                   <div style={{ minWidth: 0 }}>
                     <div className="gh-statLabel">Phase</div>
                     <div className="gh-statValue">{s.phase}</div>
@@ -389,7 +443,9 @@ const PHASES = [
                 </div>
 
                 <div className="gh-stat">
-                  <Icon><ITag /></Icon>
+                  <Icon>
+                    <ITag />
+                  </Icon>
                   <div style={{ minWidth: 0 }}>
                     <div className="gh-statLabel">Category</div>
                     <div className="gh-statValue">{s.roundLabel}</div>
@@ -397,7 +453,9 @@ const PHASES = [
                 </div>
 
                 <div className="gh-stat">
-                  <Icon><IHash /></Icon>
+                  <Icon>
+                    <IHash />
+                  </Icon>
                   <div style={{ minWidth: 0 }}>
                     <div className="gh-statLabel">Clue #</div>
                     <div className="gh-statValue">{s.clueNumber}</div>
@@ -405,7 +463,9 @@ const PHASES = [
                 </div>
 
                 <div className="gh-stat">
-                  <Icon><IClock /></Icon>
+                  <Icon>
+                    <IClock />
+                  </Icon>
                   <div style={{ minWidth: 0 }}>
                     <div className="gh-statLabel">Seconds</div>
                     <div className="gh-statValue">{s.seconds}s</div>
@@ -413,11 +473,14 @@ const PHASES = [
                 </div>
 
                 <div className="gh-stat gh-span2">
-                  <Icon><ICurrencyDollar /></Icon>
+                  <Icon>
+                    <ICurrencyDollar />
+                  </Icon>
                   <div style={{ minWidth: 0 }}>
                     <div className="gh-statLabel">Clue Value</div>
                     <div className="gh-statValue">
-                      {(s.phase === 'EASY' || s.phase === 'AVERAGE') && Number(s.clueValue) > 0
+                      {(s.phase === 'EASY' || s.phase === 'AVERAGE') &&
+                      Number(s.clueValue) > 0
                         ? s.clueValue
                         : '—'}
                     </div>
@@ -426,7 +489,9 @@ const PHASES = [
 
                 {/* NEW: Scoring progress */}
                 <div className="gh-stat">
-                  <Icon><ICheck /></Icon>
+                  <Icon>
+                    <ICheck />
+                  </Icon>
                   <div style={{ minWidth: 0 }}>
                     <div className="gh-statLabel">Scores Received</div>
                     <div className="gh-statValue">
@@ -437,11 +502,15 @@ const PHASES = [
 
                 {/* NEW: Bets progress */}
                 <div className="gh-stat">
-                  <Icon><ICurrencyDollar /></Icon>
+                  <Icon>
+                    <ICurrencyDollar />
+                  </Icon>
                   <div style={{ minWidth: 0 }}>
                     <div className="gh-statLabel">Bets Submitted</div>
                     <div className="gh-statValue">
-                      {s.phase === 'DIFFICULT' ? `${betSubmitted}/${betEligible}` : '—'}
+                      {s.phase === 'DIFFICULT'
+                        ? `${betSubmitted}/${betEligible}`
+                        : '—'}
                     </div>
                   </div>
                 </div>
@@ -618,6 +687,30 @@ const PHASES = [
               </button>
 
               <button
+                className="gh-btn"
+                onClick={doSaveSnapshot}
+                disabled={snapshotBusy}
+                title="Write game.snapshot.json to GM laptop"
+              >
+                <Icon>
+                  <ICheck />
+                </Icon>
+                {snapshotBusy ? 'Saving…' : 'Save Snapshot'}
+              </button>
+
+              <button
+                className="gh-btn"
+                onClick={doLoadSnapshot}
+                disabled={snapshotBusy}
+                title="Restore game state from last snapshot"
+              >
+                <Icon>
+                  <IClock />
+                </Icon>
+                {snapshotBusy ? 'Loading…' : 'Restore Snapshot'}
+              </button>
+
+              <button
                 className="gh-btn danger"
                 onClick={doReset}
                 title="Resets all scores and state"
@@ -628,6 +721,12 @@ const PHASES = [
                 {confirmReset ? 'Confirm Reset' : 'Reset'}
               </button>
             </div>
+
+            {snapshotMsg && (
+              <div className="gh-help" style={{ marginTop: 8 }}>
+                <span style={{ fontWeight: 800 }}>{snapshotMsg}</span>
+              </div>
+            )}
           </div>
 
           {/* RIGHT */}
