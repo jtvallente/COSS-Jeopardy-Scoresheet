@@ -331,23 +331,33 @@ Purpose: Ranking and public display
 - Winner gets +1
 
 ---
-
 ## 12. Data Persistence & Safety (Read Carefully)
 
-Safe:
+### How data is stored
+- All game state (teams, scores, phase, tie-breakers, assignments, etc.) lives **in memory (RAM)** during gameplay.
+- The server **automatically saves a snapshot to disk** whenever the game changes (debounced to avoid excessive writes).
+- The snapshot is stored as a **JSON file (server/data/game.snapshot.json)** on the Game Master’s laptop.
+
+### Safe (no data loss)
 - Browser refresh
 - Phone reconnect
-- Wi-Fi drop (temporary)
+- Proctor device reconnect
+- Temporary Wi-Fi or network drop
 
-Unsafe (data loss):
-- Server process stops
-- Host laptop sleeps/shuts down
-- Power loss
-- Nodemon restart
+### Safe *if persistence is enabled*
+- Server crash or restart (last saved snapshot is restored)
+- Accidental browser close on GM or proctor side
 
-All game data is in RAM.
+### Unsafe (possible data loss)
+- Power loss **before** the latest snapshot is written
+- Forced server termination during disk write
+- Manual deletion or corruption of the snapshot file
 
----
+### Recovery
+- A saved snapshot can be **manually/automatically loaded** from the Controller UI.
+- On server startup, the system can restore from the **last valid snapshot JSON**.
+
+Recommendation: The Game Master should verify snapshot status before critical stages (Final / Tie-Breaker).
 
 ## 13. Recommended Operational Safety
 
