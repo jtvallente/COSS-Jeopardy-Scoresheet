@@ -1,12 +1,12 @@
 // client/src/pages/Controller.jsx
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect, useRef } from 'react'
 import { useGame } from '../useGame'
 import {
   resetGame,
   updateState,
   tbFinalize,
-  tbNewClue,
   tbResolve,
+  tbStart,
 } from '../api'
 
 /* ---------------- Minimal GitHub-ish Icons ---------------- */
@@ -99,14 +99,41 @@ const PHASES = [
 const ROUND_LABELS = ['VIDEO GAMES', 'MUSIC', 'TECH', 'ANIME', 'MEMES']
 
 export default function Controller() {
-  const { game } = useGame()
+  const { game, lastEvent } = useGame()
   const s = game.state
   const tb = game.tieBreaker
 
   const [confirmReset, setConfirmReset] = useState(false)
+  const [flagNotices, setFlagNotices] = useState([])
+
   // const [clueDraft, setClueDraft] = useState(() => String(s.clueNumber ?? 1))
 
   // const clueIsDirty = clueDraft !== String(s.clueNumber ?? 1)
+
+  const seenFlagsRef = useRef(new Set())
+  const flagNoticesRef = useRef([])
+
+  useEffect(() => {
+    if (!lastEvent) return
+    if (lastEvent.type !== 'FLAG_RAISED') return
+
+    const key = [
+      lastEvent.type,
+      lastEvent.ts,
+      lastEvent.proctorId,
+      lastEvent.teamId,
+      lastEvent.phase,
+      lastEvent.roundLabel,
+      lastEvent.clueNumber,
+    ].join('|')
+
+    if (seenFlagsRef.current.has(key)) return
+    seenFlagsRef.current.add(key)
+
+    const nextFlagNotices = [lastEvent, ...flagNoticesRef.current].slice(0, 5)
+    flagNoticesRef.current = nextFlagNotices
+    setFlagNotices(nextFlagNotices)
+  }, [lastEvent])
 
   const clincherTeams = useMemo(() => {
     return (game.clincher.tiedTeamIds || [])
@@ -180,8 +207,21 @@ export default function Controller() {
   const betEligible = (game.betTracker?.eligibleTeamIds || []).length
   const betSubmitted = (game.betTracker?.submittedTeamIds || []).length
 
+  const allBetsSubmitted = betEligible > 0 && betSubmitted === betEligible
+
+  const betsToggleDisabled = s.scoringOpen
+  const betsToggleTitle = betsToggleDisabled
+    ? 'Close scoring before opening/closing bets.'
+    : 'Toggle bets'
+
+  // Only block when trying to OPEN scoring (currently closed) in DIFFICULT
+  const scoringOpenBlockedByBets =
+    s.phase === 'DIFFICULT' && !scoringOn && !allBetsSubmitted
+
   const scoringDisabledReason = scoringToggleDisabledReason
     ? scoringToggleDisabledReason
+    : scoringOpenBlockedByBets
+    ? `Scoring can only be opened after all bets are submitted (${betSubmitted}/${betEligible}).`
     : scoringCloseBlocked
     ? `Scoring can only be closed after all scores are received (${scoringReceived}/${scoringEligible}).`
     : null
@@ -189,13 +229,7 @@ export default function Controller() {
   const scoringTitle = scoringDisabledReason || 'Toggle scoring'
 
   async function startTieBreaker() {
-    await updateState({
-      phase: 'TIE_BREAKER',
-      roundLabel: 'TIE BREAKER',
-      scoringOpen: true,
-      betsOpen: false,
-    })
-    await tbNewClue()
+    await tbStart()
   }
 
   async function setClueValue(v) {
@@ -529,6 +563,7 @@ export default function Controller() {
                 </div>
               </div>
             </div>
+
             <h2>
               <Icon>
                 <IFlag />
@@ -685,12 +720,23 @@ export default function Controller() {
                 {s.phase === 'DIFFICULT' ? (
                   <button
                     className="gh-toggle"
-                    onClick={() => updateState({ betsOpen: !s.betsOpen })}
+                    onClick={() => {
+                      if (s.scoringOpen) return
+                      updateState({ betsOpen: !s.betsOpen })
+                    }}
+                    disabled={s.scoringOpen}
+                    title={betsToggleTitle}
+                    style={
+                      s.scoringOpen
+                        ? { opacity: 0.65, cursor: 'not-allowed' }
+                        : undefined
+                    }
                   >
                     <span className="gh-badge">
                       <span className={'dot ' + (betsOn ? 'on' : 'off')} />
                       Bets
                     </span>
+
                     <span
                       className="gh-badge"
                       style={{ color: betsOn ? 'var(--ok)' : 'var(--danger)' }}
@@ -826,7 +872,76 @@ export default function Controller() {
 
           {/* RIGHT */}
           <div className="gh-card">
-            <h2>
+            {flagNotices.length > 0 && (
+              <div style={{ marginTop: 12 }}>
+                <h2>
+                  <Icon>
+                    <IFlag />
+                  </Icon>
+                  Flags Raised
+                </h2>
+
+                <div className="gh-list">
+                  {flagNotices.map((evt, idx) => {
+                    const proctor = game.proctors.find(
+                      (p) => p.id === evt.proctorId
+                    )
+                    const team = game.teams.find((t) => t.id === evt.teamId)
+
+                    return (
+                      <div
+                        key={evt.ts + idx}
+                        className="gh-item"
+                        style={{
+                          border: '1px solid rgba(210,153,34,.55)',
+                          background: 'rgba(210,153,34,.12)',
+                          color: '#ffe8b6',
+                        }}
+                      >
+                        {' '}
+                        <div style={{ minWidth: 160 }}>
+                          <strong>{proctor?.name ?? evt.proctorId}</strong>
+                          <div style={{ fontSize: 11, marginTop: 2 }}>
+                            {evt.phase} • {evt.roundLabel} • Clue{' '}
+                            {evt.clueNumber}
+                          </div>
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0, fontWeight: 800 }}>
+                          {team?.name ?? evt.teamId}
+                        </div>
+                        <div
+                          style={{
+                            display: 'flex',
+                            gap: 8,
+                            alignItems: 'center',
+                          }}
+                        >
+                          <span style={{ fontSize: 11 }}>
+                            {new Date(evt.ts).toLocaleTimeString()}
+                          </span>
+
+                          {/* DISMISS */}
+                          <button
+                            className="gh-btn"
+                            onClick={() => {
+                              const next = flagNoticesRef.current.filter(
+                                (_, i) => i !== idx
+                              )
+                              flagNoticesRef.current = next
+                              setFlagNotices(next)
+                            }}
+                          >
+                            Dismiss
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            <h2 style={{ marginTop: 16 }}>
               <Icon>
                 <ITrophy />
               </Icon>{' '}

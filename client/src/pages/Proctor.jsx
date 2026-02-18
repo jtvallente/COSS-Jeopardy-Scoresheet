@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { useGame } from '../useGame'
-import { score, tbCorrect, setBet } from '../api'
+import { score, tbCorrect, setBet, raiseFlag } from '../api'
 
 /* ---------------- Minimal GitHub-ish Icons ---------------- */
 
@@ -133,6 +133,33 @@ export default function Proctor() {
       flashRow(teamId, 'ok')
     } catch (e) {
       setErrorMsg(e?.message || 'Bet update failed.')
+      flashRow(teamId, 'err')
+    } finally {
+      setBusyTeamId(null)
+    }
+  }
+
+  const phaseClueKey = `${game.state.phase}:${game.state.clueNumber}`
+
+  function receiptFor(teamId) {
+    return game.scoreReceipts?.[phaseClueKey]?.[teamId] || null
+  }
+
+  function resultPillProps(result) {
+    if (result === 'correct') return { cls: 'good', txt: 'CORRECT' }
+    if (result === 'wrong') return { cls: 'bad', txt: 'WRONG' }
+    if (result === 'no_answer') return { cls: 'warn', txt: 'NO ANSWER' }
+    return null
+  }
+
+  async function handleFlag(teamId) {
+    setErrorMsg('')
+    setBusyTeamId(teamId)
+    try {
+      await raiseFlag(proctor.id, teamId)
+      flashRow(teamId, 'ok')
+    } catch (e) {
+      setErrorMsg(e?.message || 'Flag failed.')
       flashRow(teamId, 'err')
     } finally {
       setBusyTeamId(null)
@@ -583,6 +610,11 @@ export default function Proctor() {
           ) : (
             <div className="teamGrid">
               {assignedTeams.map((t) => {
+                const receipt = receiptFor(t.id)
+                const alreadyScored = !!receipt
+                const resultTag = receipt?.result
+                  ? resultPillProps(receipt.result)
+                  : null
                 const isBusy = busyTeamId === t.id
                 const isElim = !!t.eliminated
                 const isDQ = phase === 'DIFFICULT' && t.score <= 0 && !isElim
@@ -590,6 +622,7 @@ export default function Proctor() {
                 const muted = inTieBreaker && !isClincherTeam(t.id)
 
                 const disableScoreButtons =
+                  alreadyScored ||
                   isBusy ||
                   isElim ||
                   isDQ ||
@@ -598,11 +631,25 @@ export default function Proctor() {
                   (!inTieBreaker && scoringDisabled)
 
                 const disableBetControls =
-                  isBusy || isElim || isDQ || betsDisabled
+                  isBusy ||
+                  isElim ||
+                  isDQ ||
+                  betsDisabled ||
+                  game.state.scoringOpen
 
-                const draft = betDrafts[t.id] ?? String(game.bets?.[t.id] ?? 0)
-                const saved = String(game.bets?.[t.id] ?? 0)
-                const isDirty = draft !== saved
+                const hasSavedBet =
+                  game.bets &&
+                  Object.prototype.hasOwnProperty.call(game.bets, t.id)
+
+                const savedBetStr = hasSavedBet ? String(game.bets[t.id]) : null
+
+                // If no saved bet yet, default draft to "0" (but still allow submit)
+                const draft = betDrafts[t.id] ?? savedBetStr ?? '0'
+
+                // Dirty rules:
+                // - If bet was never submitted yet -> treat as dirty so "Submit Bet" is enabled
+                // - Otherwise compare draft vs saved
+                const isDirty = !hasSavedBet || draft !== savedBetStr
 
                 const flashClass =
                   flash.teamId === t.id
@@ -640,6 +687,29 @@ export default function Proctor() {
                           >
                             {t.id}
                           </span>
+                          {resultTag && (
+                            <span className={`statusPill ${resultTag.cls}`}>
+                              {resultTag.txt}
+                            </span>
+                          )}
+
+                          {/* <button
+                            className="btn"
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() => handleFlag(t.id)}
+                            title="Raise a scoring contention to the Game Master"
+                            style={{
+                              height: 34,
+                              padding: '0 10px',
+                              borderRadius: 999,
+                              fontWeight: 900,
+                              background: 'rgba(248,81,73,.18)',
+                            }}
+                          >
+                          
+                            Raise Issue
+                          </button> */}
                         </div>
                       </div>
 
@@ -672,7 +742,7 @@ export default function Proctor() {
 
                         <button
                           className={`betBtn ${isDirty ? 'primary' : ''}`}
-                          disabled={disableBetControls || !isDirty}
+                          disabled={disableBetControls}
                           onClick={() => handleBetSubmit(t.id)}
                         >
                           {isBusy ? '...' : 'Submit Bet'}
@@ -713,6 +783,15 @@ export default function Proctor() {
                           onClick={() => handleScore(t.id, 'no_answer')}
                         >
                           No Answer
+                        </button>
+                        <button
+                          className="btn btnDanger"
+                          disabled={isBusy}
+                          onClick={() => handleFlag(t.id)}
+                          title="Raise issue to Game Master"
+                          style={{ marginTop: 8 }}
+                        >
+                          Raise Issue
                         </button>
                       </div>
                     ) : (

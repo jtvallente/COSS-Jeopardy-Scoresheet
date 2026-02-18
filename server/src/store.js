@@ -74,7 +74,7 @@ function makeInitialGame() {
       roundLabel: 'VIDEO GAMES',
       clueNumber: 1,
       clueValue: 0,
-      scoringOpen: true,
+      scoringOpen: false,
       seconds: ROUND_PRESETS[PHASES.EASY].seconds,
       betsOpen: false,
       postFinal: false,
@@ -122,6 +122,7 @@ function makeInitialGame() {
       submittedTeamIds: [],
     },
     postFinal: false,
+    flags: [], // { id, phase, clueNumber, teamId, proctorId, note, ts }
   }
 }
 
@@ -155,8 +156,8 @@ function markScored({ teamId, result, proctorId }) {
   const key = getPhaseClueKey()
   if (!store.game.scoreReceipts[key]) store.game.scoreReceipts[key] = {}
   store.game.scoreReceipts[key][teamId] = {
-    result,          // "correct" | "wrong" | "no_answer"
-    proctorId,       // "p1" etc
+    result, // "correct" | "wrong" | "no_answer"
+    proctorId, // "p1" etc
     ts: Date.now(),
   }
 }
@@ -433,6 +434,19 @@ export function updateGameState(partial) {
   if (typeof partial.scoringOpen === 'boolean') {
     const next = partial.scoringOpen
 
+    // NEW: If trying to OPEN scoring in DIFFICULT, require all bets submitted
+    if (!s.scoringOpen && next === true && s.phase === PHASES.DIFFICULT) {
+      const bt = store.game.betTracker
+      const eligible = bt?.eligibleTeamIds || []
+      const submitted = bt?.submittedTeamIds || []
+
+      if (eligible.length > 0 && submitted.length < eligible.length) {
+        throw new Error(
+          `Cannot open scoring: waiting for all bets (${submitted.length}/${eligible.length}).`
+        )
+      }
+    }
+
     // If trying to CLOSE scoring while it's currently OPEN:
     if (s.scoringOpen && next === false) {
       const tr = store.game.scoringTracker
@@ -440,7 +454,6 @@ export function updateGameState(partial) {
       const received = tr?.receivedTeamIds || []
 
       // If tracker isn't initialized / no eligible teams, do NOT auto-progress.
-      // (Prevents EASY 1 from jumping when you just set clue value.)
       if (eligible.length > 0) {
         if (received.length < eligible.length) {
           throw new Error(
@@ -448,12 +461,23 @@ export function updateGameState(partial) {
           )
         }
 
-        // Auto-progress ONLY after successful close AND only when there were eligible teams
         autoProgressAfterClose()
       }
     }
 
     s.scoringOpen = next
+  }
+
+  // betsOpen (GM toggle) only allowed in DIFFICULT
+  if (typeof partial.betsOpen === 'boolean') {
+    if (s.phase !== PHASES.DIFFICULT) {
+      throw new Error('betsOpen can only be toggled in DIFFICULT phase.')
+    }
+    // NEW: do not allow changing bets while scoring is open
+    if (s.scoringOpen) {
+      throw new Error('Cannot toggle bets while scoring is open.')
+    }
+    s.betsOpen = partial.betsOpen
   }
 
   // If clue/phase changed (after updates), reset trackers
@@ -490,6 +514,14 @@ export function updateGameState(partial) {
     // Still clues left in this phase
     if (s.clueNumber < max) {
       s.clueNumber += 1
+      if (s.phase === PHASES.DIFFICULT) {
+        store.game.bets = {}
+        store.game.betTracker = { key: null, eligibleTeamIds: [], submittedTeamIds: [] }
+        startBetTracker()
+        s.betsOpen = false        // optional: if you want bets open every new clue
+        s.scoringOpen = false    // keep scoring closed until bets complete
+      }
+      
       s.clueNumber = clampClueNumberForPhase(s.phase, s.clueNumber)
       return
     }
@@ -567,7 +599,7 @@ export function scoreByProctor({ proctorId, teamId, result }) {
     throw new Error('Invalid result.')
   }
 
-  if (hasScored(teamId)) {
+  if (getScoreReceipt(teamId)) {
     throw new Error('Already scored for this clue.')
   }
 
@@ -598,15 +630,14 @@ export function scoreByProctor({ proctorId, teamId, result }) {
   // Track that this team has sent a score for this scoring session
   const tr = store.game.scoringTracker
   if (store.game.state.scoringOpen && tr?.key) {
-    if (
-      eligibleForScoring(team, phase) &&
-      tr.eligibleTeamIds.includes(teamId)
-    ) {
+    // IMPORTANT: do NOT re-check eligibility here.
+    // Eligibility is frozen at scoring-open time (tr.eligibleTeamIds).
+    if (tr.eligibleTeamIds.includes(teamId)) {
       if (!tr.receivedTeamIds.includes(teamId)) tr.receivedTeamIds.push(teamId)
     }
   }
 
-  markScored(teamId)
+  markScored({ teamId, result, proctorId })
 
   recomputeDerived()
 }
@@ -632,6 +663,44 @@ export function startTieBreakerClue() {
   tb.winnerTeamId = null
   tb.conflict = false
 }
+export function startTieBreakerFromController() {
+  const s = store.game.state
+
+  // Must be after final round is done
+  if (s.phase !== PHASES.DIFFICULT || !s.postFinal) {
+    throw new Error('Cannot start tie-breaker: final round not completed.')
+  }
+
+  // Make sure clincher is computed
+  recomputeDerived()
+
+  if (!store.game.clincher?.needed) {
+    throw new Error('Cannot start tie-breaker: no tie detected.')
+  }
+
+  // Force-close scoring & bets
+  s.scoringOpen = false
+  s.betsOpen = false
+
+  // Switch phase internally (GM can’t do this via updateState, but server can)
+  s.phase = PHASES.TIE_BREAKER
+  s.roundLabel = 'TIE BREAKER'
+  s.clueNumber = 1
+  s.clueValue = 0
+  s.seconds = ROUND_PRESETS[PHASES.TIE_BREAKER].seconds
+
+  // Reset trackers for new phase
+  resetTrackers()
+
+  // Now start the first TB clue
+  startTieBreakerClue()
+
+  // startTieBreakerClue sets tb.scoringOpen = true; keep main scoring open too if you want proctor buttons active
+  s.scoringOpen = true
+
+  recomputeDerived()
+}
+
 
 export function openTieBreakerScoring(isOpen) {
   if (store.game.state.phase !== PHASES.TIE_BREAKER) {
@@ -766,4 +835,17 @@ export function autoAssignBySeatOrder() {
   }
 
   recomputeDerived()
+}
+
+export function raiseFlag({ proctorId, teamId, note = '' }) {
+  const s = store.game.state
+  store.game.flags.push({
+    id: `f_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+    phase: s.phase,
+    clueNumber: s.clueNumber,
+    teamId,
+    proctorId,
+    note: String(note || ''),
+    ts: Date.now(),
+  })
 }

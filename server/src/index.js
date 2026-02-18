@@ -8,6 +8,8 @@ import { Server as SocketIOServer } from 'socket.io'
 import path from "path"
 import { fileURLToPath } from "url"
 import { createGamePersister } from "./persist.js"
+import { startTieBreakerFromController } from './store.js'
+
 
 import {
   store,
@@ -99,10 +101,19 @@ app.use(requireGameId)
 const server = http.createServer(app)
 const io = new SocketIOServer(server, { cors: { origin: '*' } })
 
-function broadcast() {
+function broadcast(extraEvent = null) {
+  // Always emit game update (existing behavior)
   io.emit("game:update", store.game);
-  persister.scheduleSave(200); // autosave after every change (debounced)
+
+  // Optionally emit a transient UI event
+  if (extraEvent) {
+    io.emit("game:event", extraEvent);
+  }
+
+  // Persist game state 
+  persister.scheduleSave(200);
 }
+
 
 
 // Game ID gate (Socket)
@@ -225,16 +236,19 @@ app.post('/api/teams/import-csv', (req, res) => {
 })
 
 // ---------------- Controller / State ----------------
-app.post('/api/state', (req, res) => {
-  snapshot()
+app.post("/api/state", (req, res) => {
   try {
-    updateGameState(req.body || {})
-    broadcast()
-    res.json({ ok: true, game: store.game })
+    snapshot(); // move inside try so it can't crash the route
+    updateGameState(req.body);
+    broadcast();
+    res.json({ ok: true, game: store.game });
   } catch (e) {
-    res.status(400).json({ ok: false, error: e.message })
+    console.error("[STATE ERROR]", e);
+    res.status(400).json({ ok: false, error: e.message });
   }
-})
+});
+
+
 
 // ---------------- Proctors / Assignments ----------------
 app.post('/api/proctors/auto-assign', (req, res) => {
@@ -395,6 +409,37 @@ app.post('/api/tiebreaker/resolve', (req, res) => {
     res.json({ ok: true, game: store.game })
   } catch (e) {
     res.status(e.status || 400).json({ ok: false, error: e.message })
+  }
+})
+
+app.post("/api/flag", (req, res) => {
+  const { proctorId, teamId } = req.body;
+  if (!proctorId || !teamId) {
+    return res.status(400).json({ ok: false, error: "proctorId and teamId required" });
+  }
+
+  io.emit("game:event", {
+    type: "FLAG_RAISED",
+    ts: Date.now(),
+    proctorId,
+    teamId,
+    phase: store.game.state.phase,
+    roundLabel: store.game.state.roundLabel,
+    clueNumber: store.game.state.clueNumber,
+  });
+
+  res.json({ ok: true });
+});
+
+app.post('/api/tiebreaker/start', (req, res) => {
+  snapshot()
+  try {
+    startTieBreakerFromController()
+    broadcast()
+    res.json({ ok: true, game: store.game })
+  } catch (e) {
+    console.error('[TB START ERROR]', e)
+    res.status(400).json({ ok: false, error: e.message })
   }
 })
 

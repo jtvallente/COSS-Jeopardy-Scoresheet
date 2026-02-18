@@ -87,3 +87,8 @@ export const undo = () => post("/undo");
 
 export const saveSnapshot = () => post("/game/save");
 export const loadSnapshot = () => post("/game/load");
+
+export const raiseFlag = (proctorId, teamId) =>
+  post('/flag', { proctorId, teamId })
+
+export const tbStart = () => post('/tiebreaker/start');
